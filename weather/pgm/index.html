@@ -151,7 +151,9 @@
                                 <div
                                     class="timeline-bar-container"
                                     ref="timeline"
-                                    @click="handleTimelineClick"
+                                    @pointerdown="onTimelinePointerDown"
+                                    @pointermove="onTimelineHover"
+                                    @pointerleave="onTimelineLeave"
                                 >
                                     <div
                                         class="timeline-bar-fill"
@@ -160,15 +162,29 @@
                                     ></div>
                                     <div
                                         class="timeline-handle"
+                                        :class="{ dragging: isDragging }"
                                         :style="{ left: timelineProgress + '%' }"
                                     ></div>
-                                </div>
-                                <div class="timeline-ticks">
-                                    <span
-                                        v-for="(tick, ti) in timelineTicks"
-                                        :key="ti"
-                                        >{{ tick }}</span
+                                    <div
+                                        class="timeline-hover"
+                                        v-show="hoverLabel"
+                                        :style="hoverStyle"
                                     >
+                                        {{ hoverLabel
+                                        }}<i
+                                            class="timeline-arrow"
+                                            :style="hoverArrowStyle"
+                                        ></i>
+                                    </div>
+                                </div>
+                                <div class="timeline-scale">
+                                    <span
+                                        v-for="(mk, mi) in timelineScale"
+                                        :key="mi"
+                                        class="timeline-tick"
+                                    >
+                                        <b class="tick-label">{{ mk.label }}</b>
+                                    </span>
                                 </div>
                             </div>
                         </div>

@@ -22,6 +22,8 @@ window.weatherMap = WeatherMap.init("weather-map");
 /* 时间变化回调 */
 window.weatherMap.onTimeChange = function (state) {
     app.isPlaying = state.isPlaying;
+    /* 拖拽进度条时完全接管拖把位置，忽略播放/外部进度更新，避免被覆盖 */
+    if (app.isDragging) return;
     /* 播放中带连续 progress（0~1）→ 进度条像视频一样平滑向前；
        其余（暂停/拖动）按整数步对齐到点击位置 */
     app.timelineProgress =
@@ -63,8 +65,8 @@ window.weatherMap.fetchAllRealData({
                     ? Math.round((_idx / (_steps.length - 1)) * 100)
                     : 0;
         }
-        /* 时间轴刻度随 timeSteps 动态生成 */
-        if (window.app) app.timelineTicks = app.buildTimelineTicks();
+        /* 时间轴刻度随 timeSteps 动态生成（app 为模块级变量，此处已就绪） */
+        app.timelineScale = app.buildTimelineScale();
         app.currentTab = "weather";
     },
     onError: function (msg) {
@@ -81,9 +83,16 @@ function liemsOnLoad() {
                 currentTag: "仁佳光伏",
                 isPlaying: false,
                 timelineProgress: 0,
-                timeLabel: "06月22日, 08:00",
+                timeLabel: "2026-06-22 08:00",
                 lastHourLabel: "", // 上一个整点的 timeLabel，非整点播放时保持显示它
-                timelineTicks: [], // 时间轴刻度标签（由 buildTimelineTicks 填充）
+                timelineScale: [], // 时间轴刻度（{pct,isHour,hour}，由 buildTimelineScale 填充）
+                isDragging: false, // 进度条拖拽态
+                wasPlayingBeforeDrag: false, // 拖拽开始时是否在播放（松手后据此自动恢复）
+                hoverPct: 0, // hover/拖拽预览气泡位置（百分比，首次渲染兜底用）
+                hoverBoxLeft: 0, // 气泡框左边相对容器 px（视口约束后）
+                hoverArrowLeft: 0, // 箭头在气泡框内偏移 px（指向真实步位置）
+                hoverLabel: "", // hover/拖拽预览气泡文字
+                hoverAlign: "center", // 气泡对齐方式：custom(框/箭头独立定位)/center(兜底)
 
                 // 图例数据
                 showLegend: false,
@@ -305,6 +314,25 @@ function liemsOnLoad() {
                     return item.index < limit;
                 });
             },
+            /* hover 气泡定位 style：custom 态框用 px 左对齐 + 箭头独立 px；
+               center 兜底态用百分比居中（首次渲染未挂载时）。 */
+            hoverStyle: function () {
+                if (this.hoverAlign === "custom") {
+                    return {
+                        left: this.hoverBoxLeft + "px",
+                        transform: "none",
+                    };
+                }
+                return { left: this.hoverPct + "%", transform: "translateX(-50%)" };
+            },
+            /* 箭头定位 style：custom 态用独立 px 指向真实步位置；
+               center 兜底态箭头居中。 */
+            hoverArrowStyle: function () {
+                if (this.hoverAlign === "custom") {
+                    return { left: this.hoverArrowLeft + "px", transform: "translateX(-50%)" };
+                }
+                return { left: "50%", transform: "translateX(-50%)" };
+            },
         },
         methods: {
             handleSearch: function () {
@@ -336,7 +364,7 @@ function liemsOnLoad() {
                                       )
                                     : 0;
                         }
-                        self.timelineTicks = self.buildTimelineTicks();
+                        self.timelineScale = self.buildTimelineScale();
                         self.isPlaying = false;
                     },
                     onError: function (msg) {
@@ -430,24 +458,132 @@ function liemsOnLoad() {
                 });
             },
 
-            /* 时间轴刻度：从 timeSteps 均匀取最多 4 个时间点 */
-            buildTimelineTicks: function () {
+            /* 时间轴标签：仅首/中/尾 3 个，由 CSS flex 两端对齐定位，无需计算位置 */
+            buildTimelineScale: function () {
                 var steps =
                     window.weatherMap && window.weatherMap.timeSteps
                         ? window.weatherMap.timeSteps
                         : [];
                 var n = steps.length;
                 if (!n) return [];
-                var count = Math.min(n, 3);
-                var ticks = [];
-                for (var i = 0; i < count; i++) {
-                    var idx =
-                        count === 1
-                            ? 0
-                            : Math.round((i / (count - 1)) * (n - 1));
-                    ticks.push(steps[idx]);
+                var out = [{ label: steps[0] }];
+                if (n >= 3) out.push({ label: steps[Math.floor((n - 1) / 2)] });
+                if (n >= 2) out.push({ label: steps[n - 1] });
+                return out;
+            },
+            /* 鼠标事件 → {pct,index,label}：吸附到最近时间步，pct 由 index 反算，
+               保证拖把/气泡始终对齐刻度，不会停在两步之间。 */
+            timelinePointFromEvent: function (e) {
+                var el = this.$refs.timeline;
+                if (!el) return null;
+                var rect = el.getBoundingClientRect();
+                var ratio =
+                    rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
+                ratio = Math.max(0, Math.min(1, ratio));
+                var steps = window.weatherMap ? window.weatherMap.timeSteps : [];
+                var n = steps.length;
+                var index = n > 1 ? Math.round(ratio * (n - 1)) : 0;
+                index = Math.max(0, Math.min(n - 1, index));
+                /* 对用户而言不存在非整点：鼠标位置一律吸附到下一个整点步，
+                   hover/拖拽/松手统一走此路径，拖把与气泡永远只落在整点。 */
+                index = this.snapToNextHour(index);
+                return {
+                    pct: n > 1 ? (index / (n - 1)) * 100 : 0,
+                    index: index,
+                    label: steps[index] || "",
+                };
+            },
+            /* 统一设置 hover 气泡：气泡框以视口为界约束（绝不出屏幕），
+               箭头则始终指向真实步位置（对齐拖把/鼠标），二者独立定位。 */
+            setHover: function (p) {
+                this.hoverLabel = p.label;
+                var el = this.$refs.timeline;
+                var rect = el ? el.getBoundingClientRect() : null;
+                var hv = el ? el.querySelector(".timeline-hover") : null;
+                if (!rect || !hv || !hv.offsetWidth) {
+                    /* 首次渲染气泡尚未挂载，退回居中百分比方案 */
+                    this.hoverPct = p.pct;
+                    this.hoverAlign = "center";
+                    return;
                 }
-                return ticks;
+                var bw = hv.offsetWidth;
+                /* 步位置（容器内 px）= 箭头要指向的位置 */
+                var center = (p.pct / 100) * rect.width;
+                var vw = window.innerWidth;
+                var pad = 6;
+                /* 气泡框理想左边（容器内 px），居中于步位置 */
+                var boxLeft = center - bw / 2;
+                /* 视口约束：框左边相对视口 ≥ pad，框右边相对视口 ≤ vw-pad */
+                var boxLeftVx = rect.left + boxLeft;
+                if (boxLeftVx < pad) boxLeft = pad - rect.left;
+                if (rect.left + boxLeft + bw > vw - pad)
+                    boxLeft = vw - pad - rect.left - bw;
+                /* 箭头在框内偏移 = 步位置 - 框左边（始终指向步位置），
+                   夹到框内避免箭头跑出气泡 */
+                var arrowLeft = center - boxLeft;
+                if (arrowLeft < 6) arrowLeft = 6;
+                if (arrowLeft > bw - 6) arrowLeft = bw - 6;
+                this.hoverBoxLeft = boxLeft;
+                this.hoverArrowLeft = arrowLeft;
+                this.hoverAlign = "custom";
+            },
+            /* hover 预览（非拖拽态）：显示鼠标处时间步 */
+            onTimelineHover: function (e) {
+                if (this.isDragging) return;
+                var p = this.timelinePointFromEvent(e);
+                if (!p) return;
+                this.setHover(p);
+            },
+            onTimelineLeave: function () {
+                /* 拖拽中移出容器不清气泡，由全局 move 继续更新 */
+                if (this.isDragging) return;
+                this.hoverLabel = "";
+            },
+            /* 拖拽起点：进入拖拽态，拖把实时跟手到点击的步位置（不切帧） */
+            onTimelinePointerDown: function (e) {
+                if (e.button !== undefined && e.button !== 0) return;
+                var p = this.timelinePointFromEvent(e);
+                if (!p) return;
+                /* 拖拽时暂停播放，避免画面继续推进而拖把被拖在别处造成割裂；
+                   记录是否因拖拽暂停，松手后据此自动恢复播放。 */
+                this.wasPlayingBeforeDrag = false;
+                if (this.isPlaying && window.weatherMap) {
+                    window.weatherMap.togglePlayback();
+                    this.wasPlayingBeforeDrag = true;
+                }
+                this.isDragging = true;
+                this.timelineProgress = p.pct;
+                this.setHover(p);
+                e.preventDefault();
+            },
+            /* 全局拖拽移动：拖把实时跟手，仅更新预览不切地图帧 */
+            onTimelineDragMove: function (e) {
+                if (!this.isDragging) return;
+                var p = this.timelinePointFromEvent(e);
+                if (!p) return;
+                this.timelineProgress = p.pct;
+                this.setHover(p);
+            },
+            /* 松手：切到吸附后的整点帧（index 已由 timelinePointFromEvent 吸附整点） */
+            onTimelineDragEnd: function (e) {
+                if (!this.isDragging) return;
+                this.isDragging = false;
+                this.hoverLabel = "";
+                var p = this.timelinePointFromEvent(e);
+                if (!p || !window.weatherMap) return;
+                /* 切到该整点帧（此时已暂停，仅渲染单帧） */
+                window.weatherMap.onSliderChange(p.index);
+                /* 因拖拽暂停的，松手后自动恢复播放；
+                   但吸附到末帧时不恢复——恢复会回绕到首帧，与“拖到哪停到哪”冲突。 */
+                var shouldResume = this.wasPlayingBeforeDrag;
+                this.wasPlayingBeforeDrag = false;
+                if (
+                    shouldResume &&
+                    window.weatherMap.timeSteps.length > 1 &&
+                    p.index < window.weatherMap.timeSteps.length - 1
+                ) {
+                    window.weatherMap.togglePlayback();
+                }
             },
 
             /** 切换左侧 sidebar 对应的地图图层 */
@@ -479,27 +615,24 @@ function liemsOnLoad() {
                 window.weatherMap.togglePlayback();
             },
 
-            handleTimelineClick: function (e) {
-                if (!window.weatherMap) return;
-                var rect = this.$refs.timeline.getBoundingClientRect();
-                var clickX = e.clientX - rect.left;
-                var ratio = clickX / rect.width;
-                var totalSteps = window.weatherMap.timeSteps.length;
-                var index = Math.max(
-                    0,
-                    Math.min(
-                        totalSteps - 1,
-                        Math.round(ratio * (totalSteps - 1)),
-                    ),
-                );
-                /* 仅整点（分钟为 00）才响应跳转；非整点原地不动 */
-                var label = window.weatherMap.timeSteps[index];
-                if (!this.isHourLabel(label)) return;
-                window.weatherMap.onSliderChange(index);
-            },
             isHourLabel: function (label) {
-                /* timeLabel 形如 “06月26日 14:00”，末尾 “:00” 即整点 */
+                /* timeLabel 形如 "06月26日 14:00"，末尾 ":00" 即整点 */
                 return typeof label === "string" && /:00\s*$/.test(label.trim());
+            },
+            /* 进度条非整点吸附：取下一个整点步索引。已是整点则不变；
+               后面没有整点时回退到上一个整点，避免末段非整点点击无响应。 */
+            snapToNextHour: function (index) {
+                var steps = window.weatherMap.timeSteps;
+                if (!steps || !steps.length) return index;
+                index = Math.max(0, Math.min(steps.length - 1, index));
+                if (this.isHourLabel(steps[index])) return index;
+                for (var i = index + 1; i < steps.length; i++) {
+                    if (this.isHourLabel(steps[i])) return i;
+                }
+                for (var j = index - 1; j >= 0; j--) {
+                    if (this.isHourLabel(steps[j])) return j;
+                }
+                return index;
             },
             renderComplexIcon: function (item) {
                 if (item.id === "weather") {
@@ -542,6 +675,9 @@ function liemsOnLoad() {
             this.$nextTick(function () {
                 self.updateForecastVisible();
                 self.measureTags();
+                /* 兜底生成时间轴刻度：若 onLoad 已生成则覆盖为同值，否则补齐，
+                   避免因 onLoad/app 时序问题导致刻度标签缺失。 */
+                self.timelineScale = self.buildTimelineScale();
             });
             window.addEventListener("resize", this.updateForecastVisible);
             /* 标签折叠状态随容器尺寸变化重新测量（debounce，避免高频抖动） */
@@ -555,6 +691,10 @@ function liemsOnLoad() {
                 }, 200);
             };
             window.addEventListener("resize", this._measureResizeHandler);
+            /* 进度条拖拽：move/up 绑到 window，使鼠标移出进度条容器后仍能跟手、
+               且在容器外松手也能正确结束拖拽并吸附。down/hover/leave 在元素内处理。 */
+            window.addEventListener("pointermove", this.onTimelineDragMove);
+            window.addEventListener("pointerup", this.onTimelineDragEnd);
         },
         beforeDestroy: function () {
             window.removeEventListener(
@@ -562,6 +702,8 @@ function liemsOnLoad() {
                 this.updateForecastVisible,
             );
             window.removeEventListener("resize", this._measureResizeHandler);
+            window.removeEventListener("pointermove", this.onTimelineDragMove);
+            window.removeEventListener("pointerup", this.onTimelineDragEnd);
             if (window.weatherMap && window.weatherMap.isPlaying) {
                 window.weatherMap.togglePlayback();
             }

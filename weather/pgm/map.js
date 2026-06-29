@@ -39,12 +39,6 @@ var WeatherMap = (function () {
     };
 
     var timeSteps = []; /* 播放时间步标签，由 cmiss data 各项的 date 填充 */
-    var APIs = {
-        CMISS: "../base/rs/js/cmiss.json",
-        GEO_BOUNDS: "../base/rs/js/" + MAP_CONFIG.region + ".json",
-        /* 墨迹 EC1x1 请求要素集合（数据结构配置；接口/鉴权由后端处理） */
-        MOJICB_ELEMS: "TT2,RAIN,WS,PS,WEATHER",
-    };
 
     var map = null;
     // 全局唯一风场流线实例，不再重复创建或使用空数据销毁
@@ -66,15 +60,15 @@ var WeatherMap = (function () {
     var _blendImgData = null; // 复用的 ImageData，避免每帧 createImageData 的开销
     var playbackRaf = null; // requestAnimationFrame 句柄
     var playState = null; // { fromIdx, toIdx, stepStart, lastHalf }
-    var PLAY_STEP_MS = 1000; // 单个时间步的插值过渡时长（ms）
+    var PLAY_STEP_MS = 2000; // 单个时间步的插值过渡时长（ms）【优化：延长至2秒，过渡变化清晰可见】
     /* 连续场（温度/湿度/气压/风/辐射/云量）光流位移放大倍数：
        这些场时间变化平缓、缺乏降水降雪那种清晰团块边界，光流位移信号天然偏弱，
        需放大 shift 才能让气团推移在视觉上可见。降水降雪固定 1.0 不受影响。 */
-    var ADV_SHIFT_SCALE = 1.0;
+    var ADV_SHIFT_SCALE = 2.8; // 【优化：从1.0提升至2.8，连续场锋面推移感大幅增强】
     /* 梯度门控参考值：连续场光流位移按 空间梯度/(梯度+此值) 软门控——
        锋面/边界（梯度大）放大位移产生推移感，平坦区（梯度小）位移趋近 0 不变形，
        避免变形采样把邻近区域的值拉进来、在 a→b 之外产生多余的中间色。 */
-    var ADV_GRAD_REF = 0.3;
+    var ADV_GRAD_REF = 0.10; // 【优化：从0.3降至0.10，更多区域感受到光流位移，变化感更强】
 
     /* ============================================================
      固定场站图层：按经纬度展示场站（类型图标 + 名称），常驻显示、
@@ -110,34 +104,37 @@ var WeatherMap = (function () {
 
     /* ============================================================
      专业气象级高颜值等距色带
+     【全面优化-针对青海浅蓝色调底图】渲染模式已改为 Normal叠加(opacity 0.82)，
+     各要素颜色值重新设计：① 加入 a 通道（无值透明、有值饱和）② 气压收窄至高原范围
+     ③ 降水值域调整为青海实际量级 ④ 降雪加深基础色 ⑤ 温度扩展至-30℃
      ============================================================ */
     var METEO_CONFIG = {
         temp: {
-            min: -20,
+            min: -30,
             max: 40,
-            // 【符合标准】NCEP/CMA 标准温度色标（冷端用深紫/藏青，0度线用蓝绿过渡，热端用黄橙红）
-            // 【底图适配】加深了冷端的饱和度，使其在浅蓝底图上依然锐利。
+            // 【青海特化】扩展至-30℃覆盖高原极寒；Normal叠加模式各节点赋予透明度让底图纹理隐约可见
             colors: [
-                { val: -20, r: 49, g: 25, b: 115, hex: "#311973" },   // 极寒深紫
-                { val: -10, r: 31, g: 100, b: 150, hex: "#1f6496" },  // 藏青蓝 (避开浅蓝)
-                { val: 0, r: 77, g: 166, b: 131, hex: "#4da683" },    // 0度线青绿 (气象常用0度分界色)
-                { val: 10, r: 166, g: 217, b: 106, hex: "#a6d96a" },  // 浅草绿
-                { val: 20, r: 255, g: 255, b: 191, hex: "#ffffbf" },  // 暖黄
-                { val: 30, r: 253, g: 174, b: 97, hex: "#fdae61" },   // 橙热
-                { val: 40, r: 215, g: 25, b: 28, hex: "#d7191c" },    // 高温深红
+                { val: -30, r: 22,  g: 0,   b: 105, a: 235, hex: "rgba(22,0,105,0.92)" },    // 极寒深蓝紫
+                { val: -20, r: 49,  g: 25,  b: 155, a: 225, hex: "rgba(49,25,155,0.88)" },   // 严寒紫蓝
+                { val: -10, r: 22,  g: 85,  b: 195, a: 215, hex: "rgba(22,85,195,0.84)" },   // 藏青蓝
+                { val: 0,   r: 55,  g: 172, b: 125, a: 205, hex: "rgba(55,172,125,0.80)" },  // 0度线青绿
+                { val: 10,  r: 148, g: 212, b: 88,  a: 205, hex: "rgba(148,212,88,0.80)" },  // 浅草绿
+                { val: 20,  r: 255, g: 242, b: 70,  a: 218, hex: "rgba(255,242,70,0.85)" },  // 暖黄
+                { val: 30,  r: 255, g: 152, b: 18,  a: 238, hex: "rgba(255,152,18,0.93)" },  // 橙热
+                { val: 40,  r: 218, g: 15,  b: 18,  a: 255, hex: "#da0f12" },                // 高温深红
             ],
         },
         rain: {
             min: 0.1,
-            max: 100,
-            // 【符合标准】完全复刻中央气象台（CMA）雷达基数据和QPE（定量降水估测）的标准色阶！
-            // 从小雨的浅绿，到暴雨的红色，再到特大暴雨的品红（紫色）。
+            max: 50,
+            // 【青海特化】值域收窄至50mm（青海日降水极少超50mm，缩小量级让颜色分级更精细）
+            // 保留CMA标准色系：浅绿→绿→黄→橙红→红，各节点加 a 通道强化对比
             colors: [
-                { val: 0.1, r: 166, g: 242, b: 143, hex: "#a6f28f" }, // 小雨 (10-20 dBZ)
-                { val: 10, r: 61, g: 185, b: 63, hex: "#3db93f" },    // 中雨 (30 dBZ)
-                { val: 25, r: 255, g: 255, b: 0, hex: "#ffff00" },    // 大雨 (40 dBZ 黄金预警色)
-                { val: 50, r: 255, g: 0, b: 0, hex: "#ff0000" },      // 暴雨 (50 dBZ 红色预警色)
-                { val: 100, r: 255, g: 0, b: 255, hex: "#ff00ff" },   // 特大暴雨 (60+ dBZ 品红)
+                { val: 0.1, r: 166, g: 242, b: 143, a: 155, hex: "rgba(166,242,143,0.61)" }, // 微雨（半透明浅绿）
+                { val: 5,   r: 50,  g: 195, b: 55,  a: 195, hex: "rgba(50,195,55,0.76)" },   // 小雨（绿）
+                { val: 15,  r: 255, g: 245, b: 0,   a: 220, hex: "rgba(255,245,0,0.86)" },   // 大雨（黄金预警色）
+                { val: 30,  r: 255, g: 80,  b: 0,   a: 238, hex: "rgba(255,80,0,0.93)" },    // 暴雨（橙红预警色）
+                { val: 50,  r: 255, g: 0,   b: 0,   a: 255, hex: "#ff0000" },                // 大暴雨（红色极值）
             ],
         },
         snow: {
@@ -157,17 +154,16 @@ var WeatherMap = (function () {
         windSpeed: {
             min: 0,
             max: 30,
-            // 【符合标准】全球预报系统（如 ECMWF / Windy）风速场标准配色：青绿 -> 黄 -> 橙红 -> 玫红
+            // 【青海特化】高原风大(3-6级为常态)；低风速端半透明可见，强风端颜色深而饱和
             colors: [
-                { val: 0, r: 171, g: 221, b: 164, a: 0, hex: "rgba(171,221,164,0)" }, // 0风速透明，不遮挡底图
-                { val: 2, r: 171, g: 221, b: 164, a: 255, hex: "#abdda4" }, // 2级风 (青绿)
-                { val: 4, r: 102, g: 194, b: 165, a: 255, hex: "#66c2a5" }, // 3级风 (深青)
-                { val: 8, r: 254, g: 224, b: 139, a: 255, hex: "#fee08b" }, // 5级风 (亮黄)
-                { val: 10, r: 253, g: 174, b: 97, a: 255, hex: "#fdae61" }, // 6级风 (橙色)
-                { val: 15, r: 244, g: 109, b: 67, a: 255, hex: "#f46d43" }, // 7级风 (橘红)
-                { val: 20, r: 213, g: 62, b: 79, a: 255, hex: "#d53e4f" },  // 8级风 (大红)
-                { val: 25, r: 158, g: 1, b: 66, a: 255, hex: "#9e0142" },   // 10级风 (暗红)
-                { val: 30, r: 103, g: 0, b: 31, a: 255, hex: "#67001f" },   // 狂风 (黑红)
+                { val: 0,  r: 110, g: 210, b: 110, a: 0,   hex: "rgba(110,210,110,0)" },    // 0风速完全透明
+                { val: 2,  r: 110, g: 210, b: 110, a: 175, hex: "rgba(110,210,110,0.69)" }, // 微风（青绿半透明）
+                { val: 5,  r: 75,  g: 188, b: 148, a: 205, hex: "rgba(75,188,148,0.80)" },  // 3级风（深青）
+                { val: 10, r: 255, g: 228, b: 0,   a: 222, hex: "rgba(255,228,0,0.87)" },   // 5级风（亮黄）
+                { val: 15, r: 255, g: 155, b: 22,  a: 238, hex: "rgba(255,155,22,0.93)" },  // 7级风（橙色）
+                { val: 20, r: 238, g: 75,  b: 48,  a: 248, hex: "rgba(238,75,48,0.97)" },   // 8级风（橘红）
+                { val: 25, r: 195, g: 22,  b: 58,  a: 255, hex: "#c3163a" },                // 10级风（大红）
+                { val: 30, r: 118, g: 0,   b: 28,  a: 255, hex: "#76001c" },                // 狂风（黑红）
             ],
         },
         pressure: {
@@ -187,14 +183,14 @@ var WeatherMap = (function () {
         humidity: {
             min: 0,
             max: 100,
-            // 【符合标准】WMO 相对湿度标准色标：干旱(棕色/沙色) -> 适中(淡黄) -> 湿润(绿色/深绿)。
-            // 这种棕绿配色（BrBG）是全球湿度与干旱监测的绝对标准。
+            // 【青海特化】青海整体偏干(年均湿度30-60%)；加深干端棕色，湿端绿色更饱和
+            // BrBG配色保留，各节点加 a 通道让低值区半透明、高值区不透明
             colors: [
-                { val: 0, r: 140, g: 81, b: 10, hex: "#8c510a" },     // 极度干燥 (焦棕)
-                { val: 30, r: 216, g: 179, b: 101, hex: "#d8b365" },  // 干燥 (沙土黄)
-                { val: 60, r: 246, g: 232, b: 195, hex: "#f6e8c3" },  // 适宜 (米白)
-                { val: 80, r: 90, g: 180, b: 172, hex: "#5ab4ac" },   // 湿润 (青绿)
-                { val: 100, r: 1, g: 102, b: 94, hex: "#01665e" },    // 极度潮湿 (墨绿)
+                { val: 0,   r: 125, g: 60,  b: 8,   a: 238, hex: "rgba(125,60,8,0.93)" },    // 极度干燥（深焦棕）
+                { val: 25,  r: 205, g: 150, b: 72,  a: 218, hex: "rgba(205,150,72,0.85)" },  // 干燥（沙土黄）
+                { val: 55,  r: 238, g: 218, b: 165, a: 205, hex: "rgba(238,218,165,0.80)" }, // 适宜（米白）
+                { val: 75,  r: 68,  g: 162, b: 155, a: 218, hex: "rgba(68,162,155,0.85)" },  // 湿润（青绿）
+                { val: 100, r: 0,   g: 88,  b: 78,  a: 238, hex: "rgba(0,88,78,0.93)" },     // 极湿（墨绿）
             ],
         },
         radiation: {
@@ -214,22 +210,21 @@ var WeatherMap = (function () {
         cloud: {
             min: 0,
             max: 100,
-            // 【符合标准】卫星云图的红外增强色阶 (IR Cloud Fraction)。
-            // 业务中，云量覆盖必须使用带有透明度的灰阶，并轻微带一点暖色，以区分底图的自然高光（雪山）。
+            // 【底图适配】Normal叠加模式下灰色云层可直接清晰显示；
+            // 加深基础灰色，增强少云→密云的可见度梯度，无云区完全透明
             colors: [
-                { val: 0, r: 200, g: 200, b: 200, a: 0, hex: "rgba(200,200,200,0)" }, // 晴空透明
-                { val: 20, r: 217, g: 217, b: 217, a: 180, hex: "rgba(217,217,217,0.7)" }, // 少云
-                { val: 50, r: 150, g: 150, b: 150, a: 210, hex: "rgba(150,150,150,0.8)" }, // 多云 (中灰)
-                { val: 80, r: 99, g: 99, b: 99, a: 240, hex: "rgba(99,99,99,0.9)" },       // 阴天 (深灰)
-                { val: 100, r: 37, g: 37, b: 37, a: 255, hex: "#252525" },                 // 密云 (几乎纯黑，专业气象云图浓密区常用重色)
+                { val: 0,   r: 190, g: 190, b: 200, a: 0,   hex: "rgba(190,190,200,0)" },   // 晴空完全透明
+                { val: 15,  r: 192, g: 192, b: 205, a: 130, hex: "rgba(192,192,205,0.51)" }, // 少云（浅灰半透明）
+                { val: 40,  r: 135, g: 135, b: 148, a: 188, hex: "rgba(135,135,148,0.74)" }, // 多云（中灰）
+                { val: 70,  r: 82,  g: 82,  b: 92,  a: 228, hex: "rgba(82,82,92,0.89)" },   // 阴天（深灰）
+                { val: 100, r: 28,  g: 28,  b: 38,  a: 252, hex: "rgba(28,28,38,0.99)" },   // 密云（近黑）
             ],
         },
         isobar: {
-            interval: 20,
-            // 【符合标准】气象海平面气压场（SLP）叠加等值线，通常使用黑色或深褐色的锐利细线。
-            lineColor: "rgba(20, 20, 20, 0.85)", // 深炭黑色，极高对比度
-            lineWidth: 1.2,
-            labelColor: "#000000", // 纯黑色气压标签
+            interval: 10, // 【优化】等压线间距从20降至10hPa，青海高原值域窄，10hPa间距线条更丰富
+            lineColor: "rgba(20, 20, 20, 0.90)", // 深炭黑色，高对比
+            lineWidth: 1.4,
+            labelColor: "#0a0a0a",
         },
     };
 
@@ -1020,6 +1015,22 @@ var WeatherMap = (function () {
         return L.layerGroup(markers);
     }
 
+    /* 场站弹窗 HTML：在弹窗打开时即时构建，确保反映当前选中的气象要素与时间步。
+       保留场站自带天气电码，并追加当前选中要素在站点位置的插值值。 */
+    function buildStationPopupHtml(st) {
+        var typeKey = st.type && STATION_TYPE_ICON[st.type] ? st.type : "default";
+        var html = '<div class="popup-title">📍 ' + (st.name || "") + "</div>";
+        html += '<div class="popup-row">🏷️ 类型: ' + (STATION_TYPE_LABEL[typeKey] || typeKey) + "</div>";
+        html += '<div class="popup-row">🧭 经纬度: ' + (+st.lat).toFixed(3) + "°N, " + (+st.lng).toFixed(3) + "°E</div>";
+        if (st.weather != null && st.weather !== "") {
+            var wx2 = WEATHER_ICONS[String(st.weather)] || WEATHER_ICONS["13"];
+            html += '<div class="popup-row">🌤️ 天气: ' + wx2.label + "</div>";
+        }
+        var rows = activeElementRows(st.lat, st.lng);
+        if (rows.length) html += rows.join("");
+        return html;
+    }
+
     function buildStationLayer() {
         if (!stationConfig || stationConfig.length === 0) return null;
         var markers = [];
@@ -1043,14 +1054,7 @@ var WeatherMap = (function () {
             var marker = L.marker([st.lat, st.lng], { icon: divIcon, pane: "stationPane" });
             marker._stationGroup = st.group || "";
 
-            var popup = '<div class="popup-title">📍 ' + (st.name || "") + "</div>";
-            popup += '<div class="popup-row">🏷️ 类型: ' + (STATION_TYPE_LABEL[typeKey] || typeKey) + "</div>";
-            popup += '<div class="popup-row">🧭 经纬度: ' + (+st.lat).toFixed(3) + "°N, " + (+st.lng).toFixed(3) + "°E</div>";
-            if (st.weather != null && st.weather !== "") {
-                var wx2 = WEATHER_ICONS[String(st.weather)] || WEATHER_ICONS["13"];
-                popup += '<div class="popup-row">🌤️ 天气: ' + wx2.label + "</div>";
-            }
-            marker.bindPopup(popup, { className: "weather-popup", maxWidth: 240 });
+            marker.bindPopup(function () { return buildStationPopupHtml(st); }, { className: "weather-popup", maxWidth: 240 });
             markers.push(marker);
         });
         return L.layerGroup(markers);
@@ -1268,14 +1272,22 @@ var WeatherMap = (function () {
 
             if (mapLayersCache[type]) mapLayersCache[type].addTo(map);
 
-            if (isPlaying) {
-                setParticleFxVisible(false);
-            } else {
-                // 【关键修复】：如果没在播放中，切到风场图层时必须立刻强刷一帧，唤醒静态粒子引擎
-                if (MUTEX_TYPES.indexOf(type) >= 0) {
-                    renderSingleFrame(type, currentTimeIndex);
-                    setParticleFxVisible(true);
+            if (MUTEX_TYPES.indexOf(type) >= 0) {
+                /* 切换数值气象要素图层时：停止播放，并将时间点重置为距当前时间最近的时间步
+                   （默认值），修复“切换气象效果后播放进度不停止”。无论切换前是否在播放，一律回默认。 */
+                if (isPlaying) {
+                    isPlaying = false;
+                    if (playbackRaf) { cancelAnimationFrame(playbackRaf); playbackRaf = null; }
+                    if (playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
+                    playState = null;
                 }
+                currentTimeIndex = findNearestStepIndex(new Date());
+                renderSingleFrame(type, currentTimeIndex);
+                setParticleFxVisible(true);
+                notifyTimeChange();
+            } else if (isPlaying) {
+                /* 切到天气等非互斥图层且正在播放：保留原有隐藏粒子行为 */
+                setParticleFxVisible(false);
             }
 
             if (window.updateLegendUI)
@@ -1285,15 +1297,55 @@ var WeatherMap = (function () {
         return wasActive;
     }
 
+    /* 生成“当前选中气象要素”在 (lat,lng) 处的插值展示行，场站弹窗与地图点击共用。
+       分类值（天气电码）不在此处理；无激活要素时返回空数组。 */
+    function activeElementRows(lat, lng) {
+        function check(v) { return (v !== undefined && v !== null && v !== 9999 && v !== 999999 && v !== -9999 && v !== -999 && !isNaN(v)); }
+        function fmt(v, d) { return (+v).toFixed(d == null ? 1 : d); }
+        var rows = [];
+        var activeType = getActiveLayerType();
+        /* 直接在点击点做 IDW 插值取该点气象值，不再找最近格点/站点 */
+        if (activeType === "temp") {
+            var t = interpolatePointValue("temp", lat, lng);
+            if (check(t)) rows.push('<div class="popup-row">🌡️ <b>气温:</b> ' + fmt(t, 1) + "°C</div>");
+        } else if (activeType === "rain") {
+            var r = interpolatePointValue("rain", lat, lng);
+            if (check(r)) rows.push('<div class="popup-row">💧 <b>降水:</b> ' + fmt(r, 2) + " mm</div>");
+        } else if (activeType === "snow") {
+            var sn = interpolatePointValue("snow", lat, lng);
+            if (check(sn)) rows.push('<div class="popup-row">❄️ <b>降雪量:</b> ' + fmt(sn, 2) + " mm</div>");
+        } else if (activeType === "wind" || activeType === "windSpeed") {
+            var ws = interpolatePointValue("windSpeed", lat, lng);
+            if (check(ws)) rows.push('<div class="popup-row">🌪 <b>实况风速:</b> ' + fmt(ws, 1) + " m/s</div>");
+            if (!isPlaying && cacheData.gfs && cacheData.gfs.length >= 2) {
+                var v = getGridValueAt(cacheData.gfs, lat, lng);
+                if (v && v[0] != null && v[1] != null) {
+                    var speed = Math.sqrt(v[0] * v[0] + v[1] * v[1]).toFixed(1),
+                        dir = (((Math.atan2(-v[0], -v[1]) * 180) / Math.PI + 360) % 360).toFixed(0);
+                    rows.push('<div class="popup-row">🌬️ <b>预报流线:</b> ' + speed + " m/s  (" + dir + "°)</div>");
+                }
+            }
+        } else if (activeType === "pressure" || activeType === "isobar") {
+            var ps = interpolatePointValue("pressure", lat, lng);
+            if (check(ps)) rows.push('<div class="popup-row">⏱ <b>气压:</b> ' + fmt(ps, 1) + " hPa</div>");
+        } else if (activeType === "humidity") {
+            var rh = interpolatePointValue("humidity", lat, lng);
+            if (check(rh)) rows.push('<div class="popup-row">💧 <b>相对湿度:</b> ' + fmt(rh, 0) + " %</div>");
+        } else if (activeType === "radiation") {
+            var rad = interpolatePointValue("radiation", lat, lng);
+            if (check(rad)) rows.push('<div class="popup-row">☀️ <b>太阳辐射:</b> ' + fmt(rad, 0) + " W/m²</div>");
+        } else if (activeType === "cloud") {
+            var cl = interpolatePointValue("cloud", lat, lng);
+            if (check(cl)) rows.push('<div class="popup-row">☁️ <b>总云量:</b> ' + fmt(cl, 0) + " %</div>");
+        }
+        return rows;
+    }
+
     function bindMapPopup() {
         map.on("click", function (e) {
             var lat = e.latlng.lat, lng = e.latlng.lng;
             if (!isInsideQinghai(lat, lng)) return;
-            var rows = [];
-
-            function check(v) { return (v !== undefined && v !== null && v !== 9999 && v !== 999999 && v !== -9999 && v !== -999 && !isNaN(v)); }
             function isOn(t) { var l = mapLayersCache[t]; return !!l && !!map._layers[l._leaflet_id]; }
-            function fmt(v, d) { return (+v).toFixed(d == null ? 1 : d); }
 
             /* 点击命中附近格点（距离 < 0.02°≈2km）时显示该格点站名 s[27]；
                气象值仍用点击点插值，不受站点选择影响。 */
@@ -1304,42 +1356,11 @@ var WeatherMap = (function () {
                 if (ddeg < 0.02) stationName = near[27];
             }
 
-            var activeType = getActiveLayerType();
-            /* 直接在点击点做 IDW 插值取该点气象值，不再找最近格点/站点 */
-            if (activeType === "temp") {
-                var t = interpolatePointValue("temp", lat, lng);
-                if (check(t)) rows.push('<div class="popup-row">🌡️ <b>气温:</b> ' + fmt(t, 1) + "°C</div>");
-            } else if (activeType === "rain") {
-                var r = interpolatePointValue("rain", lat, lng);
-                if (check(r)) rows.push('<div class="popup-row">💧 <b>降水:</b> ' + fmt(r, 2) + " mm</div>");
-            } else if (activeType === "snow") {
-                var sn = interpolatePointValue("snow", lat, lng);
-                if (check(sn)) rows.push('<div class="popup-row">❄️ <b>降雪量:</b> ' + fmt(sn, 2) + " mm</div>");
-            } else if (activeType === "wind" || activeType === "windSpeed") {
-                var ws = interpolatePointValue("windSpeed", lat, lng);
-                if (check(ws)) rows.push('<div class="popup-row">🌪 <b>实况风速:</b> ' + fmt(ws, 1) + " m/s</div>");
-                if (!isPlaying && cacheData.gfs && cacheData.gfs.length >= 2) {
-                    var v = getGridValueAt(cacheData.gfs, lat, lng);
-                    if (v && v[0] != null && v[1] != null) {
-                        var speed = Math.sqrt(v[0] * v[0] + v[1] * v[1]).toFixed(1),
-                            dir = (((Math.atan2(-v[0], -v[1]) * 180) / Math.PI + 360) % 360).toFixed(0);
-                        rows.push('<div class="popup-row">🌬️ <b>预报流线:</b> ' + speed + " m/s  (" + dir + "°)</div>");
-                    }
-                }
-            } else if (activeType === "pressure" || activeType === "isobar") {
-                var ps = interpolatePointValue("pressure", lat, lng);
-                if (check(ps)) rows.push('<div class="popup-row">⏱ <b>气压:</b> ' + fmt(ps, 1) + " hPa</div>");
-            } else if (activeType === "humidity") {
-                var rh = interpolatePointValue("humidity", lat, lng);
-                if (check(rh)) rows.push('<div class="popup-row">💧 <b>相对湿度:</b> ' + fmt(rh, 0) + " %</div>");
-            } else if (activeType === "radiation") {
-                var rad = interpolatePointValue("radiation", lat, lng);
-                if (check(rad)) rows.push('<div class="popup-row">☀️ <b>太阳辐射:</b> ' + fmt(rad, 0) + " W/m²</div>");
-            } else if (activeType === "cloud") {
-                var cl = interpolatePointValue("cloud", lat, lng);
-                if (check(cl)) rows.push('<div class="popup-row">☁️ <b>总云量:</b> ' + fmt(cl, 0) + " %</div>");
-            } else if (activeType == null && isOn("weather")) {
-                /* 天气电码为分类值不插值，取点击点最近的格点电码展示 */
+            /* 当前选中气象要素在点击点的插值展示行，与场站弹窗共用 activeElementRows */
+            var rows = activeElementRows(lat, lng);
+
+            /* 无激活要素但天气图层开启时，天气电码为分类值不插值，取点击点最近格点电码展示 */
+            if (getActiveLayerType() == null && isOn("weather")) {
                 var st = findNearestStation(lat, lng);
                 if (st && st[4] != null) {
                     var wx = WEATHER_ICONS[String(st[4])];
@@ -1486,7 +1507,7 @@ var WeatherMap = (function () {
         if (date == null) return "";
         var d = new Date(date);
         if (isNaN(d.getTime())) return String(date);
-        return pad2(d.getMonth() + 1) + "月" + pad2(d.getDate()) + "日 " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
     }
     function stepDateToDate(date) {
         if (date == null) return null;
@@ -1926,13 +1947,7 @@ var WeatherMap = (function () {
             renderBlendedFrame(activeType, playState.fromIdx, playState.toIdx, t);
             syncSubLayers(activeType, playState, t);
         }
-        var progress;
-        if (playState.wrapFromEnd) {
-            /* 末帧→首帧回绕：进度从 100% 平滑回到 0%，避免进度条在首帧位置跳变 */
-            progress = (timeSteps.length - 1) * (1 - t);
-        } else {
-            progress = timeSteps.length > 1 ? (currentTimeIndex + t) / (timeSteps.length - 1) : 0;
-        }
+        var progress = timeSteps.length > 1 ? (currentTimeIndex + t) / (timeSteps.length - 1) : 0;
         notifyTimeChange(progress);
         if (t >= 1) {
             currentTimeIndex = playState.toIdx;
@@ -1944,7 +1959,6 @@ var WeatherMap = (function () {
             playState.toIdx = currentTimeIndex + 1;
             playState.stepStart = now;
             playState.lastHalf = false;
-            playState.wrapFromEnd = false;
             if (activeType) {
                 var preT = activeType, preI = playState.toIdx;
                 setTimeout(function () {
@@ -1959,28 +1973,25 @@ var WeatherMap = (function () {
 
     function startPlayback() {
         if (timeSteps.length <= 1) return;
-        /* 停在末帧时点播放：不做“重置到首帧 + 硬切”的跳变（那会闪一下），
-           而是让 playState 从末帧→首帧做一次正常光流过渡，过渡完再从首帧顺序播放。 */
-        var atEnd = currentTimeIndex >= timeSteps.length - 1;
-        if (atEnd) {
-            currentTimeIndex = 0; /* toIdx=0，作为回绕目标；fromIdx 仍用末帧 */
+        /* 停在末帧时点播放：立即回到首帧重新播放。用户期望“立即回起点”，
+           不做末帧→首帧的平滑回绕——回绕会让 progress 短暂越过 100% 导致进度条爆表。 */
+        if (currentTimeIndex >= timeSteps.length - 1) {
+            currentTimeIndex = 0;
         }
         isPlaying = true;
         setParticleFxVisible(false);
         notifyTimeChange();
         var activeType = getActiveLayerType();
         if (activeType) {
-            getCachedFrame(activeType, atEnd ? timeSteps.length - 1 : currentTimeIndex);
-            getCachedFrame(activeType, 0); /* 回绕目标帧 / 首帧缓存 */
-            if (!atEnd && currentTimeIndex + 1 < timeSteps.length) getCachedFrame(activeType, currentTimeIndex + 1);
+            getCachedFrame(activeType, currentTimeIndex);
+            if (currentTimeIndex + 1 < timeSteps.length) getCachedFrame(activeType, currentTimeIndex + 1);
         }
         precomputeContourNext(activeType, Math.min(currentTimeIndex + 1, timeSteps.length - 1));
         playState = {
-            fromIdx: atEnd ? timeSteps.length - 1 : currentTimeIndex,
-            toIdx: atEnd ? 0 : Math.min(currentTimeIndex + 1, timeSteps.length - 1),
+            fromIdx: currentTimeIndex,
+            toIdx: Math.min(currentTimeIndex + 1, timeSteps.length - 1),
             stepStart: performance.now(),
             lastHalf: false,
-            wrapFromEnd: atEnd, /* 标记当前步是“末帧→首帧”回绕，进度条按回绕单独计算 */
         };
         if (playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
         playbackRaf = requestAnimationFrame(playLoop);

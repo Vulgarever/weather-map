@@ -360,6 +360,7 @@ html {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 .timeline-badge {
     align-self: flex-start;
@@ -370,39 +371,96 @@ html {
     border-radius: 4px;
     margin-bottom: 6px;
 }
+/* 进度条命中区放大到 20px 便于点击/拖拽；条本身仅 8px 居中（::before 画灰底轨） */
 .timeline-bar-container {
     position: relative;
-    height: 6px;
-    background-color: #e2e8f0;
-    border-radius: 3px;
-    margin: 6px 0;
+    height: 20px;
+    margin: 2px 0;
     cursor: pointer;
+    display: flex;
+    align-items: center;
 }
-.timeline-bar-fill {
-    height: 100%;
-    background-color: #3b82f6;
-    border-radius: 3px;
+.timeline-bar-container::before {
+    content: "";
     position: absolute;
     left: 0;
-    top: 0;
-    overflow: hidden;
+    right: 0;
+    top: 50%;
+    height: 8px;
+    transform: translateY(-50%);
+    background-color: #e2e8f0;
+    border-radius: 4px;
+}
+.timeline-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 8px;
+    background-color: #3b82f6;
+    border-radius: 4px;
+    max-width: 100%;
+}
+/* 播放中连续 progress 加极短线性过渡更顺滑；暂停/拖拽时无过渡即时跟手 */
+.timeline-bar-fill.playing {
+    transition: width 0.1s linear;
 }
 .timeline-handle {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background-color: white;
     border: 2px solid #3b82f6;
     position: absolute;
-    top: -3px;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.timeline-ticks {
+.timeline-handle:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.15);
+}
+.timeline-handle.dragging {
+    transform: translate(-50%, -50%) scale(1.25);
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.25);
+    transition: none;
+}
+/* hover / 拖拽 预览气泡：框以视口为界不溢出，箭头独立指向真实步位置 */
+.timeline-hover {
+    position: absolute;
+    bottom: 100%;
+    margin-bottom: 8px;
+    background-color: #1e293b;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 5;
+}
+/* 箭头：位置由 inline style 控制（指向步位置） */
+.timeline-arrow {
+    position: absolute;
+    top: 100%;
+    border: 4px solid transparent;
+    border-top-color: #1e293b;
+}
+/* 时间轴标签：首/中/尾 3 个，flex 两端对齐，无需计算位置 */
+.timeline-scale {
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
-    color: #64748b;
+    margin-top: 4px;
+}
+.tick-label {
+    font-size: 12px;
+    color: #94a3b8;
+    white-space: nowrap;
+    line-height: 1;
+    font-weight: normal;
 }
 
 /* 动态色带图例 */

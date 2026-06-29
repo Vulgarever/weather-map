@@ -30,7 +30,15 @@
       "Bash(timeout 180 npm i puppeteer --no-save --registry=https://registry.npmmirror.com)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(npm root *)",
-      "Bash(node -e *)"
+      "Bash(node -e *)",
+      "Read(//c/Users/李伟/AppData/Local/Temp/**)",
+      "Bash(node --check weather/pgm/map.js)",
+      "Bash(git stash *)",
+      "Bash(node --check weather/pgm/index.js)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__evaluate_script",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_console_messages",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8765/index.html)"
     ],
     "additionalDirectories": [
       "\\tmp"
