@@ -1,0 +1,67 @@
+<h2>色阶粒度:粗色带还是细色带?</h2>
+<p class="subtitle">A+C 叠加(色带填充+等值线)方向已定。现在定<b>色带分级粒度</b> —— 这决定等值面是"台阶分明"还是"接近渐变"。两版都叠加了等值线+数值标注,落在省份轮廓上。</p>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <path id="prov" d="M58,108 C74,74 116,60 168,64 C222,69 280,72 324,92 C348,104 346,128 328,150 C300,170 250,176 192,173 C130,170 80,158 62,138 C49,126 52,114 58,108 Z"/>
+</defs></svg>
+
+<div class="cards">
+  <!-- 粗色阶 -->
+  <div class="card" data-choice="coarse" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;background:#0b1a2a">
+      <svg viewBox="0 0 386 240" style="width:100%;height:auto;display:block">
+        <use href="#prov" fill="#6788ee"/>
+        <use href="#prov" fill="#b9d047" transform="translate(193 116) scale(0.72) translate(-193 -116)"/>
+        <use href="#prov" fill="#f19d28" transform="translate(193 116) scale(0.48) translate(-193 -116)"/>
+        <use href="#prov" fill="#df5327" transform="translate(193 116) scale(0.26) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="0.8" transform="translate(193 116) scale(0.72) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="0.8" transform="translate(193 116) scale(0.48) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.4"/>
+        <g font-family="monospace" font-size="10" fill="#fff" text-anchor="middle">
+          <text x="74" y="104" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">10</text>
+          <text x="125" y="100" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">20</text>
+          <text x="168" y="108" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">26</text>
+          <text x="193" y="119" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">30</text>
+        </g>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>粗色阶 · 每 4~5℃ 一档</h3>
+      <p>色块少、台阶硬朗,等级一目了然。<b>最像传统气象台</b>。等值线稀疏,适合降水/气压这类按"等级"分类的要素。</p>
+    </div>
+  </div>
+
+  <!-- 细色阶 -->
+  <div class="card" data-choice="fine" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;background:#0b1a2a">
+      <svg viewBox="0 0 386 240" style="width:100%;height:auto;display:block">
+        <use href="#prov" fill="#3b4cc0"/>
+        <use href="#prov" fill="#6788ee" transform="translate(193 116) scale(0.88) translate(-193 -116)"/>
+        <use href="#prov" fill="#9ebbff" transform="translate(193 116) scale(0.76) translate(-193 -116)"/>
+        <use href="#prov" fill="#c9d7f0" transform="translate(193 116) scale(0.64) translate(-193 -116)"/>
+        <use href="#prov" fill="#b9d047" transform="translate(193 116) scale(0.52) translate(-193 -116)"/>
+        <use href="#prov" fill="#ecd034" transform="translate(193 116) scale(0.40) translate(-193 -116)"/>
+        <use href="#prov" fill="#f19d28" transform="translate(193 116) scale(0.28) translate(-193 -116)"/>
+        <use href="#prov" fill="#df5327" transform="translate(193 116) scale(0.16) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="0.6" transform="translate(193 116) scale(0.76) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="0.6" transform="translate(193 116) scale(0.52) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="0.6" transform="translate(193 116) scale(0.28) translate(-193 -116)"/>
+        <use href="#prov" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.4"/>
+        <g font-family="monospace" font-size="9" fill="#fff" text-anchor="middle">
+          <text x="68" y="106" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">10</text>
+          <text x="100" y="100" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">14</text>
+          <text x="135" y="98" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">18</text>
+          <text x="168" y="104" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">24</text>
+          <text x="188" y="113" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">28</text>
+          <text x="193" y="119" paint-order="stroke" stroke="#0b1a2a" stroke-width="3">30</text>
+        </g>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>细色阶 · 每 1~2℃ 一档</h3>
+      <p>色块密、过渡细腻,接近渐变但仍是<b>矢量台阶</b>。<b>最像现代专业平台</b>(Windy 色带填充模式)。适合温度这种连续场。</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">不同要素可用不同粒度 —— 温度用细色阶、降水/气压用粗色阶。点选你<b>整体倾向</b>,细节后面再调。</p>

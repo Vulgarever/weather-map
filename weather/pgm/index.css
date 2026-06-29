@@ -1,0 +1,602 @@
+body,
+html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #e2eefd 0%, #c1daf5 100%);
+}
+
+/* 主背景 */
+.page{
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+    z-index: 2;
+    pointer-events: none;
+}
+.page> * {
+    pointer-events: auto;
+}
+
+/* 地图容器 */
+.map-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    overflow: hidden;
+}
+#weather-map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+}
+
+/* 顶栏 - 日期选择器 */
+.top-left-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 6px 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+.date-picker-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #333;
+    font-size: 14px;
+}
+.calendar-icon {
+    width: 16px;
+    height: 16px;
+    fill: #666;
+}
+.search-btn {
+    margin-left: 12px;
+}
+.refresh-btn {
+    margin-left: 8px;
+}
+
+/* 左侧控制面板 */
+.left-sidebar {
+    position: absolute;
+    top: 80px;
+    left: 20px;
+    z-index: 10;
+    width: 68px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    backdrop-filter: blur(4px);
+}
+.sidebar-item {
+    width: 56px;
+    height: 58px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin: 4px 0;
+    cursor: pointer;
+    border-radius: 6px;
+    color: #555;
+    transition: all 0.2s;
+}
+.sidebar-item-icon {
+    width: 20px;
+    height: 20px;
+    margin-bottom: 4px;
+    fill: currentColor;
+}
+.sidebar-item-label {
+    font-size: 11px;
+}
+.sidebar-item.active {
+    background-color: #eff6ff;
+    color: #4880ff;
+    font-weight: bold;
+}
+
+/* 右侧控制面板 */
+.right-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+    width: 380px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(4px);
+}
+.panel-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1e293b;
+    margin-bottom: 12px;
+}
+.tag-container {
+    position: relative; /* 作为子元素 offsetTop/Left 的测量基准 */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.station-tag {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #eff6ff;
+    color: #1e40af;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+.station-tag.active {
+    background-color: #3b82f6;
+    color: white;
+}
+/* 展开/收缩按钮 —— 用中性灰色与普通站点标签区分 */
+.station-tag.tag-toggle-btn {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border-color: #e2e8f0;
+}
+.station-tag.tag-toggle-btn:hover {
+    background-color: #e2e8f0;
+}
+
+/* 气象卡片滑动区 */
+.forecast-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+.nav-arrow {
+    border: none;
+    background: none;
+    color: #3b82f6;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+.nav-arrow:disabled {
+    color: #cbd5e1;
+    cursor: not-allowed;
+}
+.forecast-list {
+    display: flex;
+    flex-grow: 1;
+    justify-content: flex-start;
+    overflow: hidden;
+}
+.forecast-track {
+    display: flex;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+}
+.forecast-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 60px;
+    min-width: 60px;
+    flex-shrink: 0;
+}
+.forecast-date {
+    font-size: 11px;
+    color: #4880ff;
+    margin-bottom: 4px;
+}
+.weather-icon {
+    height: 28px;
+    width: 28px;
+    object-fit: contain;
+    margin-bottom: 4px;
+    display: block;
+}
+.forecast-temp {
+    font-size: 11px;
+    color: #475569;
+    line-height: 1.3;
+}
+
+/* 最下方大模块对齐配置 */
+.bottom-section {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    height: 188px;
+    display: flex;
+    gap: 20px;
+    z-index: 10;
+    pointer-events: auto;
+}
+.bottom-left-table-panel {
+    flex: 1;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(4px);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: center;
+}
+.data-table th {
+    background-color: #3b82f6;
+    color: white;
+    font-weight: normal;
+    height: 33px;
+    line-height: 33px;
+    padding: 0 6px;
+    white-space: nowrap;
+}
+.data-table td {
+    height: 33px;
+    line-height: 33px;
+    padding: 0 6px;
+    color: #4880ff;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.data-table tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+.cell-type {
+    color: #475569 !important;
+    font-weight: 500;
+}
+
+/* 底部右侧：控制面板容器 */
+.bottom-right-container {
+    width: 380px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.bottom-right-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.bottom-right-card.timeline-card {
+    height: 104px;
+}
+.bottom-right-card.legend-card {
+    height: 72px;
+}
+
+/* 播放控制与进度条 */
+.player-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.play-btn-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+}
+.play-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+}
+.play-icon {
+    width: 0;
+    height: 0;
+    border-top: 6px solid transparent;
+    border-left: 10px solid white;
+    border-bottom: 6px solid transparent;
+    margin-left: 2px;
+}
+.pause-icon {
+    width: 8px;
+    height: 10px;
+    display: flex;
+    justify-content: space-between;
+}
+.pause-icon::before,
+.pause-icon::after {
+    content: "";
+    width: 3px;
+    height: 100%;
+    background-color: white;
+}
+.play-label {
+    font-size: 10px;
+    color: #3b82f6;
+    margin-top: 4px;
+}
+.slider-timeline {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+.timeline-badge {
+    align-self: flex-start;
+    background-color: #3b82f6;
+    color: white;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+}
+.timeline-bar-container {
+    position: relative;
+    height: 6px;
+    background-color: #e2e8f0;
+    border-radius: 3px;
+    margin: 6px 0;
+    cursor: pointer;
+}
+.timeline-bar-fill {
+    height: 100%;
+    background-color: #3b82f6;
+    border-radius: 3px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+}
+.timeline-handle {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: white;
+    border: 2px solid #3b82f6;
+    position: absolute;
+    top: -3px;
+    transform: translateX(-50%);
+    cursor: pointer;
+}
+.timeline-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #64748b;
+}
+
+/* 动态色带图例 */
+.legend-title {
+    font-size: 11px;
+    color: #1e293b;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+.legend-gradient-bar {
+    height: 8px;
+    border-radius: 2px;
+    margin-bottom: 4px;
+}
+.legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #64748b;
+    padding: 0 2px;
+}
+
+/* 地图弹窗样式 */
+.weather-popup .leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.98);
+    color: #333;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+.weather-popup .leaflet-popup-tip {
+    background: rgba(255, 255, 255, 0.98);
+}
+.weather-popup .leaflet-popup-content {
+    margin: 10px 14px;
+    font-size: 13px;
+    line-height: 1.8;
+}
+.popup-title {
+    font-weight: bold;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 4px;
+    padding-right: 28px; /* 给右上角关闭按钮留空间，避免标题与×重叠 */
+    margin-bottom: 6px;
+    color: #111;
+}
+.popup-row {
+    margin: 2px 0;
+    color: #444;
+}
+.leaflet-control-velocity {
+    background: none !important;
+    box-shadow: none !important;
+    color: #333 !important;
+    font-size: 13px !important;
+}
+.leaflet-container {
+    background: transparent !important;
+}
+
+/* Leaflet 控件浅色主题适配 */
+.leaflet-control-zoom {
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-radius: 6px !important;
+    overflow: hidden;
+    position: absolute;
+    right: 10px;
+}
+.leaflet-control-zoom a {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #475569 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    width: 32px !important;
+    height: 32px !important;
+    line-height: 32px !important;
+    font-size: 16px !important;
+    transition: background 0.2s;
+}
+.leaflet-control-zoom a:hover {
+    background: rgba(255, 255, 255, 1) !important;
+    color: #1e293b !important;
+}
+.leaflet-control-zoom a:last-child {
+    border-bottom: none !important;
+}
+.weather-popup .leaflet-popup-close-button {
+    color: #94a3b8 !important;
+    font-size: 20px !important;
+    top: 11px !important;
+    right: 8px !important;
+    width: 22px !important;
+    height: 22px !important;
+    line-height: 22px !important;
+    padding: 0 !important;
+}
+.wm-ic {
+    background: none !important;
+    border: none !important;
+}
+.wm-ic svg,
+.wm-ic img {
+    display: block;
+}
+
+/* 固定场站标记：仅图标 + 名称（无边框/无背景），置于 stationPane 顶层 */
+.wm-station-wrap {
+    background: none !important;
+    border: none !important;
+    pointer-events: auto; /* stationPane 容器穿透，场站本体需可点击 */
+    transition: opacity 0.25s ease;
+}
+.wm-station {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.wm-station-icon {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    line-height: 1;
+}
+.wm-station-pic {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    /* 轻投影：保证图标在任意底色上清晰 */
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+/* 图标图片缺失兜底：显示类型 emoji（由 data-fallback 提供） */
+.wm-station-icon.is-fallback::after {
+    content: attr(data-fallback);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+/* 天气角标（天气图层激活且场站有天气电码时出现） */
+.wm-station-wx {
+    position: absolute;
+    right: -4px;
+    top: -4px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+.wm-station-wx img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+.wm-station-name {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #0f172a;
+    white-space: nowrap;
+    pointer-events: none;
+    /* 多重白色描边：无背景也能在地图上清晰可读（若想去描边删此行） */
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff,
+        0 1px 2px rgba(0, 0, 0, 0.65);
+}
+
+/* 场站分组高亮（按地区/公司批量突出） */
+/* 非高亮组：半透明弱化 */
+.wm-station-wrap.is-dimmed {
+    opacity: 0.3;
+}
+/* 高亮组：图标橙色发光 + 放大，名称变色加粗 + 强化描边 */
+.wm-station-wrap.is-highlight .wm-station-pic {
+    transform: scale(1.25);
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.95))
+        drop-shadow(0 0 2px rgba(245, 158, 11, 1));
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+.wm-station-wrap.is-highlight .wm-station-icon.is-fallback::after {
+    transform: scale(1.25);
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.95))
+        drop-shadow(0 0 2px rgba(245, 158, 11, 1));
+}
+.wm-station-wrap.is-highlight .wm-station-name {
+    color: #ea580c;
+    font-weight: bold;
+    text-shadow: 0 0 4px rgba(245, 158, 11, 0.7), 0 0 3px #fff, 0 0 3px #fff,
+        0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.leaflet-control-attribution {
+    display: none !important;
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>组合:Canvas 平滑场 + SVG 等值线</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0b1a2a; color:#e8eef9; font-family:system-ui,"Microsoft YaHei",sans-serif; }
+  .head { padding:12px 16px; background:#0f2238; border-bottom:1px solid #1a3050; }
+  .head h1 { font-size:15px; font-weight:600; }
+  .head .sub { font-size:12px; opacity:.7; margin-top:3px; }
+  .wrap { padding:16px; }
+  .stage { position:relative; width:100%; background:#0a1520; border-radius:6px; overflow:hidden; }
+  .stage canvas { width:100%; height:auto; display:block; }
+  #ovl { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  .note { font-size:12px; opacity:.8; margin-top:12px; line-height:1.7; }
+  .foot { padding:10px 16px; font-size:11px; opacity:.65; background:#0f2238; border-top:1px solid #1a3050; }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>组合方案 · Canvas 平滑场 + SVG 等值线叠加</h1>
+  <div class="sub">底层 Canvas 连续色彩(MSN 风) + 上层 SVG 矢量等值线+数值(气象台风),同一次 IDW 计算</div>
+</div>
+<div class="wrap">
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div id="ovl"></div>
+  </div>
+  <p class="note">这就是 Windy / Ventusky 温度图的做法:<b>Canvas 负责平滑的色彩场,SVG 只画等值线和数字</b>(不填色带,避免遮盖)。两层坐标完全对齐。等值线用了深色底线+白色高线的"双描边",保证在任何彩色背景上都清晰。</p>
+</div>
+<div class="foot" id="foot">计算中…</div>
+
+<script>
+var STATIONS_DATA = [{"lat":39.217,"lng":101.6833,"t":19.6},{"lat":36.783,"lng":99.0833,"t":15},{"lat":38.633,"lng":103.0833,"t":15},{"lat":37.467,"lng":102.9,"t":14.4},{"lat":37.2,"lng":102.8667,"t":5.3},{"lat":37.917,"lng":102.6667,"t":15},{"lat":39.15,"lng":100.1667,"t":21.6},{"lat":39.083,"lng":100.2833,"t":22.6},{"lat":38.433,"lng":100.8167,"t":16.4},{"lat":38.8,"lng":101.0833,"t":20.7},{"lat":38.833,"lng":99.6167,"t":16.5},{"lat":36.983,"lng":103.1833,"t":12.7},{"lat":36.8,"lng":93.6833,"t":18.5},{"lat":36.417,"lng":94.9167,"t":19.7},{"lat":36.433,"lng":96.4333,"t":19.4},{"lat":36.3,"lng":98.1,"t":13.6},{"lat":34.217,"lng":92.4333,"t":12.8},{"lat":34.917,"lng":98.2167,"t":7.8},{"lat":34.483,"lng":100.2333,"t":11.6},{"lat":33.967,"lng":99.9,"t":10.9},{"lat":33.75,"lng":99.65,"t":11.3},{"lat":33.433,"lng":101.4833,"t":9.8},{"lat":32.933,"lng":100.75,"t":20.4},{"lat":38.817,"lng":98.4167,"t":13.3},{"lat":38.433,"lng":99.6,"t":12.8},{"lat":37.383,"lng":101.6167,"t":9.3},{"lat":36.9,"lng":100.9833,"t":15.2},{"lat":38.183,"lng":100.25,"t":17.8},{"lat":37.333,"lng":100.1333,"t":12.8},{"lat":36.817,"lng":101.95,"t":14.2},{"lat":36.5,"lng":102.1,"t":12.7},{"lat":36.333,"lng":102.8333,"t":20.2},{"lat":36.1,"lng":102.27,"t":15.3},{"lat":35.85,"lng":102.45,"t":19.7},{"lat":36.483,"lng":102.4167,"t":17.3},{"lat":32.983,"lng":98.1,"t":10.1},{"lat":31.8,"lng":98.5833,"t":23.8},{"lat":31.617,"lng":100,"t":24.6},{"lat":32.283,"lng":100.3333,"t":19.1},{"lat":36.267,"lng":100.6167,"t":19},{"lat":36.017,"lng":101.3667,"t":23.8},{"lat":35.583,"lng":99.9833,"t":14.9},{"lat":35.583,"lng":100.7333,"t":17},{"lat":35.25,"lng":100.6,"t":17.2},{"lat":38.25,"lng":90.85,"t":16.2},{"lat":37.367,"lng":97.3833,"t":17.2},{"lat":37.3,"lng":99.0167,"t":10.8},{"lat":38.75,"lng":93.3333,"t":17.1},{"lat":37.85,"lng":95.35,"t":13.3},{"lat":35.933,"lng":102.0167,"t":22.7},{"lat":35.55,"lng":102.0333,"t":20.4},{"lat":34.733,"lng":101.6,"t":13.5},{"lat":35.033,"lng":101.4667,"t":10.5},{"lat":36.683,"lng":101.25,"t":19.2},{"lat":36.583,"lng":100.4833,"t":10.7},{"lat":36.267,"lng":100.2667,"t":19.1},{"lat":36.733,"lng":101.75,"t":16.5},{"lat":33.583,"lng":102.9667,"t":16.9},{"lat":32.267,"lng":100.9667,"t":22.5},{"lat":32.9,"lng":101.7,"t":20.4},{"lat":31.9,"lng":102.2333,"t":29.6},{"lat":32.8,"lng":102.55,"t":18.3},{"lat":32.083,"lng":102.9833,"t":25.3},{"lat":31.883,"lng":93.7833,"t":16.3},{"lat":32.35,"lng":91.1,"t":12.9},{"lat":36.5,"lng":101.5833,"t":13.9},{"lat":36.95,"lng":101.6833,"t":17.1},{"lat":35.217,"lng":93.0833,"t":10.1},{"lat":34.117,"lng":95.8,"t":6.4},{"lat":33,"lng":96.9667,"t":19.9},{"lat":33.8,"lng":97.1333,"t":8.4},{"lat":32.2,"lng":96.4667,"t":17.5},{"lat":33.85,"lng":95.6167,"t":10.4},{"lat":32.883,"lng":95.2833,"t":14.3},{"lat":35.583,"lng":103.1833,"t":18.5},{"lat":35.183,"lng":102.5,"t":15.9},{"lat":34.6,"lng":102.5,"t":19.2},{"lat":34,"lng":102.0833,"t":12.8},{"lat":35,"lng":102.9,"t":16},{"lat":38.217,"lng":101.9333,"t":12.3},{"lat":36.933,"lng":98.4833,"t":15.5}];
+var TC = [
+  {v:-20,c:[59,76,192]},{v:-10,c:[103,136,238]},{v:0,c:[158,187,255]},{v:5,c:[201,215,240]},
+  {v:10,c:[73,154,83]},{v:15,c:[113,180,87]},{v:18,c:[185,208,71]},{v:21,c:[236,208,52]},
+  {v:24,c:[241,157,40]},{v:28,c:[223,83,39]},{v:35,c:[177,22,34]}
+];
+function cA(v){
+  if(v<=TC[0].v)return TC[0].c.slice();
+  var L=TC[TC.length-1]; if(v>=L.v)return L.c.slice();
+  for(var i=0;i<TC.length-1;i++){var a=TC[i],b=TC[i+1];if(v>=a.v&&v<=b.v){var t=(v-a.v)/(b-a.v);return [a.c[0]+(b.c[0]-a.c[0])*t|0,a.c[1]+(b.c[1]-a.c[1])*t|0,a.c[2]+(b.c[2]-a.c[2])*t|0];}}
+  return [128,128,128];
+}
+
+var pts = STATIONS_DATA;
+var mnL=Infinity,mxL=-Infinity,mnG=Infinity,mxG=-Infinity;
+pts.forEach(function(p){mnL=Math.min(mnL,p.lat);mxL=Math.max(mxL,p.lat);mnG=Math.min(mnG,p.lng);mxG=Math.max(mxG,p.lng);});
+var pL=(mxL-mnL)*0.06||0.5, pG=(mxG-mnG)*0.06||0.5;
+mnL-=pL;mxL+=pL;mnG-=pG;mxG+=pG;
+
+var cols=220, asp=(mxL-mnL)/(mxG-mnG)||1, rows=Math.max(40,Math.round(cols*asp));
+var grid=new Float32Array(cols*rows);
+var c0=Math.cos(((mnL+mxL)/2)*Math.PI/180), sm=2500;
+for(var gy=0;gy<rows;gy++){
+  var lat=mxL-(gy+0.5)/rows*(mxL-mnL);
+  for(var gx=0;gx<cols;gx++){
+    var lng=mnG+(gx+0.5)/cols*(mxG-mnG);
+    var num=0,den=0;
+    for(var i=0;i<pts.length;i++){
+      var p=pts[i];
+      var dl=(p.lng-lng)*c0*111, da=(p.lat-lat)*111;
+      var d2=dl*dl+da*da;
+      if(d2<1e-4){num=p.t;den=1;break;}
+      var w=1/(d2+sm); num+=p.t*w; den+=w;
+    }
+    grid[gy*cols+gx]=num/den;
+  }
+}
+var gMn=Infinity,gMx=-Infinity;
+for(var k=0;k<grid.length;k++){gMn=Math.min(gMn,grid[k]);gMx=Math.max(gMx,grid[k]);}
+
+// ===== Canvas 平滑场 =====
+(function(){
+  var s=document.createElement('canvas'); s.width=cols; s.height=rows;
+  var x=s.getContext('2d'); var id=x.createImageData(cols,rows);
+  for(var i=0;i<cols*rows;i++){
+    var c=cA(grid[i]); var j=i*4;
+    id.data[j]=c[0]; id.data[j+1]=c[1]; id.data[j+2]=c[2]; id.data[j+3]=255;
+  }
+  x.putImageData(id,0,0);
+  var cv=document.getElementById('cv');
+  cv.width=720; cv.height=Math.round(720/cols*rows);
+  var dx=cv.getContext('2d');
+  dx.imageSmoothingEnabled=true; dx.imageSmoothingQuality='high';
+  dx.drawImage(s,0,0,cols,rows,0,0,cv.width,cv.height);
+})();
+
+// ===== Marching Squares(用于等值线) =====
+function trace(level){
+  var segs=[];
+  function pe(e,gx,gy,tl,tr,br,bl){
+    if(e==='top'){return [gx+(level-tl)/((tr-tl)||1e-9),gy];}
+    if(e==='right'){return [gx+1,gy+(level-tr)/((br-tr)||1e-9)];}
+    if(e==='bottom'){return [gx+(level-bl)/((br-bl)||1e-9),gy+1];}
+    return [gx,gy+(level-tl)/((bl-tl)||1e-9)];
+  }
+  for(var gy2=0;gy2<rows-1;gy2++){
+    for(var gx2=0;gx2<cols-1;gx2++){
+      var tl=grid[gy2*cols+gx2],tr=grid[gy2*cols+gx2+1],br=grid[(gy2+1)*cols+gx2+1],bl=grid[(gy2+1)*cols+gx2];
+      var cd=0; if(tl>=level)cd|=8; if(tr>=level)cd|=4; if(br>=level)cd|=2; if(bl>=level)cd|=1;
+      var s=null;
+      switch(cd){
+        case 1:case 14:s=[pe('left',gx2,gy2,tl,tr,br,bl),pe('bottom',gx2,gy2,tl,tr,br,bl)];break;
+        case 2:case 13:s=[pe('bottom',gx2,gy2,tl,tr,br,bl),pe('right',gx2,gy2,tl,tr,br,bl)];break;
+        case 3:case 12:s=[pe('left',gx2,gy2,tl,tr,br,bl),pe('right',gx2,gy2,tl,tr,br,bl)];break;
+        case 4:case 11:s=[pe('top',gx2,gy2,tl,tr,br,bl),pe('right',gx2,gy2,tl,tr,br,bl)];break;
+        case 6:case 9:s=[pe('top',gx2,gy2,tl,tr,br,bl),pe('bottom',gx2,gy2,tl,tr,br,bl)];break;
+        case 7:case 8:s=[pe('left',gx2,gy2,tl,tr,br,bl),pe('top',gx2,gy2,tl,tr,br,bl)];break;
+        case 5:segs.push([pe('left',gx2,gy2,tl,tr,br,bl),pe('top',gx2,gy2,tl,tr,br,bl)]);s=[pe('bottom',gx2,gy2,tl,tr,br,bl),pe('right',gx2,gy2,tl,tr,br,bl)];break;
+        case 10:segs.push([pe('left',gx2,gy2,tl,tr,br,bl),pe('bottom',gx2,gy2,tl,tr,br,bl)]);s=[pe('top',gx2,gy2,tl,tr,br,bl),pe('right',gx2,gy2,tl,tr,br,bl)];break;
+      }
+      if(s)segs.push(s);
+    }
+  }
+  function ky(p){return p[0].toFixed(3)+'_'+p[1].toFixed(3);}
+  var mp={};
+  segs.forEach(function(s,i){[0,1].forEach(function(e){var k=ky(s[e]);if(!mp[k])mp[k]=[];mp[k].push({i:i,e:e});});});
+  var us=new Array(segs.length).fill(false); var rng=[];
+  for(var i2=0;i2<segs.length;i2++){
+    if(us[i2])continue; us[i2]=true;
+    var rg=[segs[i2][0],segs[i2][1]]; var cur=segs[i2][1],gd=0;
+    while(gd++<20000){
+      var cs=(mp[ky(cur)]||[]).filter(function(e){return !us[e.i];});
+      if(!cs.length)break;
+      var nx=cs[0]; us[nx.i]=true; cur=segs[nx.i][1-nx.e];
+      if(ky(cur)===ky(rg[0]))break;
+      rg.push(cur);
+    }
+    if(rg.length>=3)rng.push(rg);
+  }
+  return rng;
+}
+
+// ===== SVG 等值线叠加(只线+数值) =====
+var lineStep=4, lineLevels=[];
+for(var v=Math.ceil(gMn/lineStep)*lineStep;v<gMx;v+=lineStep)lineLevels.push(v);
+
+(function(){
+  var vbW=cols-1, vbH=rows-1;
+  var o='<svg viewBox="0 0 '+vbW+' '+vbH+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">';
+  var lbs=[];
+  lineLevels.forEach(function(lv){
+    var rng=trace(lv); if(!rng.length)return;
+    var d='';
+    rng.forEach(function(r){d+='M'+r.map(function(p){return p[0].toFixed(2)+','+p[1].toFixed(2);}).join('L')+'Z';});
+    o+='<path d="'+d+'" fill="none" stroke="rgba(10,20,35,0.55)" stroke-width="'+(vbW*0.0024).toFixed(3)+'"/>';
+    o+='<path d="'+d+'" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="'+(vbW*0.0009).toFixed(3)+'"/>';
+    var r0=rng[0], mid=r0[Math.floor(r0.length/2)];
+    lbs.push({x:mid[0],y:mid[1],v:lv});
+  });
+  var fs2=(vbH*0.04).toFixed(2), sw=(vbH*0.014).toFixed(2);
+  lbs.forEach(function(l){
+    o+='<text x="'+l.x.toFixed(2)+'" y="'+l.y.toFixed(2)+'" font-size="'+fs2+'" fill="#fff" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="#0b1a2a" stroke-width="'+sw+'" font-family="monospace" font-weight="bold">'+l.v+'</text>';
+  });
+  o+='</svg>';
+  document.getElementById('ovl').innerHTML=o;
+  document.getElementById('foot').textContent='站点 '+pts.length+' | 网格 '+cols+'×'+rows+' | 场 '+gMn.toFixed(1)+'~'+gMx.toFixed(1)+'℃ | 等值线每 '+lineStep+'℃ 一条,共 '+lineLevels.length+' 条';
+})();
+</script>
+</body>
+</html>

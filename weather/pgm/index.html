@@ -1,0 +1,211 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>气象数据监控平台</title>
+        <link
+            rel="stylesheet"
+            href="../base/rs/simple/css/liems-base-simple.min.css"
+        />
+        <!-- 引入 Leaflet -->
+        <link rel="stylesheet" href="../base/rs/css/leaflet.css" />
+        <link rel="stylesheet" href="../base/rs/css/leaflet-velocity.min.css" />
+        <link rel="stylesheet" href="./index.css?v=20260625">
+    </head>
+    <body>       
+
+        <div id="liEMSAPP" class="page" v-cloak>
+            <!-- 顶栏：日期查询 -->
+            <div class="top-left-panel">
+                <div class="date-picker-trigger">
+                    <c-date transfer size="small" v-model="queryDate" type="daterange"></c-date>
+                </div>
+                <c-button class="search-btn" type="primary" @click="handleSearch">查询</c-button>
+                <c-button class="refresh-btn" type="primary" @click="refreshCmiss">刷新数据</c-button>
+            </div>
+
+            <!-- 左侧工具栏 -->
+            <div class="left-sidebar">
+                <div
+                    v-for="item in sidebarItems"
+                    :key="item.id"
+                    :class="['sidebar-item', { active: currentTab === item.id }]"
+                    @click="switchMapLayer(item)"
+                >
+                    <svg class="sidebar-item-icon" viewBox="0 0 24 24">
+                        <g
+                            v-if="item.isComplex"
+                            v-html="renderComplexIcon(item)"
+                        ></g>
+                        <path v-else :d="item.iconPath" />
+                    </svg>
+                    <span class="sidebar-item-label">{{ item.label }}</span>
+                </div>
+            </div>
+
+            <!-- 右侧区域选择与天气预测 -->
+            <div class="right-panel">
+                <div class="panel-title">青海省-海北藏族自治州</div>
+                <div class="tag-container" ref="tagContainer">
+                    <div
+                        v-for="item in visibleStationTags"
+                        :key="item.tag"
+                        :class="['station-tag', { active: currentTag === item.tag }]"
+                        @click="currentTag = item.tag"
+                    >
+                        {{ item.tag }}
+                    </div>
+                    <div
+                        v-if="tagOverflow"
+                        ref="tagToggleBtn"
+                        class="station-tag tag-toggle-btn"
+                        @click="tagExpanded = !tagExpanded"
+                    >
+                        {{ tagExpanded ? '收缩' : '展开' }}
+                    </div>
+                </div>
+
+                <div class="forecast-wrapper">
+                    <button
+                        class="nav-arrow"
+                        :disabled="!canSlidePrev"
+                        @click="slideForecast('left')"
+                    >
+                        &lt;
+                    </button>
+                    <div class="forecast-list" ref="forecastList">
+                        <div class="forecast-track" :style="forecastTrackStyle">
+                            <div
+                                v-for="day in forecastData"
+                                :key="day.date"
+                                class="forecast-item"
+                            >
+                                <div class="forecast-date">{{ day.date }}</div>
+                                <img
+                                    class="weather-icon"
+                                    :src="'../base/rs/img/tq-' + day.code + '.png'"
+                                    alt="天气"
+                                    :title="getWeatherIconLabel(day.code)"
+                                />
+                                <div class="forecast-temp">
+                                    <div>{{ day.tempHigh }}</div>
+                                    <div>{{ day.tempLow }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        class="nav-arrow"
+                        :disabled="!canSlideNext"
+                        @click="slideForecast('right')"
+                    >
+                        &gt;
+                    </button>
+                </div>
+            </div>
+
+            <!-- 底部对齐的横向版面 -->
+            <div class="bottom-section">
+                <!-- 底部左侧：表格数据面板 -->
+                <div class="bottom-left-table-panel">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%">类型</th>
+                                <th v-for="col in tableColumns" :key="col">
+                                    {{ col }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in tableRows" :key="row.type">
+                                <td class="cell-type">{{ row.type }}</td>
+                                <td
+                                    v-for="(val, index) in row.values"
+                                    :key="index"
+                                >
+                                    {{ val }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 底部右侧：控制面板与图例组合 -->
+                <div class="bottom-right-container">
+                    <!-- 自动播放与滑动条 -->
+                    <div class="bottom-right-card timeline-card">
+                        <div class="player-section">
+                            <div class="play-btn-container" @click="togglePlay">
+                                <div class="play-circle">
+                                    <div
+                                        :class="isPlaying ? 'pause-icon' : 'play-icon'"
+                                    ></div>
+                                </div>
+                                <span class="play-label">自动播放</span>
+                            </div>
+                            <div class="slider-timeline">
+                                <div class="timeline-badge">
+                                    {{ timeLabel }}
+                                </div>
+                                <div
+                                    class="timeline-bar-container"
+                                    ref="timeline"
+                                    @click="handleTimelineClick"
+                                >
+                                    <div
+                                        class="timeline-bar-fill"
+                                        :class="{ playing: isPlaying }"
+                                        :style="{ width: timelineProgress + '%' }"
+                                    ></div>
+                                    <div
+                                        class="timeline-handle"
+                                        :style="{ left: timelineProgress + '%' }"
+                                    ></div>
+                                </div>
+                                <div class="timeline-ticks">
+                                    <span
+                                        v-for="(tick, ti) in timelineTicks"
+                                        :key="ti"
+                                        >{{ tick }}</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 动态图例 -->
+                    <div
+                        class="bottom-right-card legend-card"
+                        v-show="showLegend"
+                    >
+                        <div class="legend-title">{{ legendTitle }}</div>
+                        <div
+                            class="legend-gradient-bar"
+                            :style="{ background: legendGradient }"
+                        ></div>
+                        <div class="legend-labels">
+                            <span v-for="(lbl, idx) in legendLabels" :key="idx"
+                                >{{ lbl }}</span
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 地图容器 -->
+        <div class="map-container">
+            <div id="weather-map"></div>
+        </div>
+
+        <!-- 引入 Leaflet 及插件 -->
+        <script src="../base/rs/simple/liems.base.simple.min.js"></script>
+        <script src="../base/rs/js/leaflet.js"></script>
+        <script src="../base/rs/js/leaflet-velocity.min.js"></script>
+        <script src="../base/rs/js/cmiss.js"></script>
+        <script src="../base/rs/js/qinghai.js"></script>
+        <!-- 引入气象地图核心模块 -->
+        <script src="./map.js?v=20260626a"></script>
+        <script src="./index.js"></script>
+    </body>
+</html>

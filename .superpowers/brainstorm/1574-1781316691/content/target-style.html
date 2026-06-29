@@ -1,0 +1,71 @@
+<h2>你心目中的"专业气象地图 SVG"是哪种?</h2>
+<p class="subtitle">先对齐目标视觉风格,再谈实现。下面三种用的是<b>同一组温度数据</b>(中心热、外围冷),只是渲染范式不同。点卡片可选。</p>
+
+<div class="cards">
+  <!-- A: 等值面色带填充 -->
+  <div class="card" data-choice="iso-band" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:8px;background:#0b1a2a">
+      <svg viewBox="0 0 220 160" style="width:100%;height:auto;display:block">
+        <path d="M15,85 C20,40 60,18 110,25 C165,32 200,55 198,90 C196,125 160,145 105,142 C50,139 12,125 15,85 Z" fill="#6788ee"/>
+        <path d="M32,85 C36,52 65,38 108,43 C155,48 182,62 180,90 C178,118 150,132 105,129 C58,126 28,115 32,85 Z" fill="#9ebbff"/>
+        <path d="M52,85 C55,62 75,52 105,56 C142,60 164,70 162,90 C160,110 138,120 105,117 C68,114 48,105 52,85 Z" fill="#b9d047"/>
+        <path d="M72,84 C74,70 86,64 104,67 C126,70 142,77 140,90 C138,103 122,110 104,107 C84,104 70,98 72,84 Z" fill="#f19d28"/>
+        <path d="M90,83 C91,76 98,72 107,74 C120,76 128,81 127,89 C126,97 116,101 106,99 C96,97 89,92 90,83 Z" fill="#df5327"/>
+        <path d="M15,85 C20,40 60,18 110,25 C165,32 200,55 198,90 C196,125 160,145 105,142 C50,139 12,125 15,85 Z M32,85 C36,52 65,38 108,43 C155,48 182,62 180,90 C178,118 150,132 105,129 C58,126 28,115 32,85 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+        <path d="M52,85 C55,62 75,52 105,56 C142,60 164,70 162,90 C160,110 138,120 105,117 C68,114 48,105 52,85 Z M72,84 C74,70 86,64 104,67 C126,70 142,77 140,90 C138,103 122,110 104,107 C84,104 70,98 72,84 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>A · 等值面色带填充 (Iso-band)</h3>
+      <p>按等级(如每 2℃)把场切成离散色带,每个色带是一个 <b>真正的 SVG &lt;path&gt;</b>。台阶边界、等级分明 —— 中央气象台 / 日本气象厅风格。矢量、可交互、缩放无损。</p>
+    </div>
+  </div>
+
+  <!-- B: 平滑连续渐变 -->
+  <div class="card" data-choice="smooth-gradient" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:8px;background:#0b1a2a">
+      <svg viewBox="0 0 220 160" style="width:100%;height:auto;display:block">
+        <defs>
+          <radialGradient id="gradB" cx="48%" cy="44%" r="58%">
+            <stop offset="0%" stop-color="#df5327"/>
+            <stop offset="18%" stop-color="#f19d28"/>
+            <stop offset="35%" stop-color="#ecd034"/>
+            <stop offset="52%" stop-color="#b9d047"/>
+            <stop offset="72%" stop-color="#9ebbff"/>
+            <stop offset="100%" stop-color="#6788ee"/>
+          </radialGradient>
+          <filter id="softB"><feGaussianBlur stdDeviation="2.5"/></filter>
+        </defs>
+        <rect x="10" y="14" width="200" height="132" fill="url(#gradB)" filter="url(#softB)" rx="4"/>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>B · 平滑连续渐变场</h3>
+      <p>色彩连续过渡、<b>无台阶</b>,像 Windy / Ventusky。注意:它的本质是<b>逐像素栅格 (Canvas)</b>,SVG 只能用渐变/滤镜"模拟"。视觉最现代,但严格说不是"生成 SVG"。</p>
+    </div>
+  </div>
+
+  <!-- C: 等值线 + 标注 -->
+  <div class="card" data-choice="contour-lines" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:8px;background:#0b1a2a">
+      <svg viewBox="0 0 220 160" style="width:100%;height:auto;display:block">
+        <path d="M58,80 C62,48 96,40 122,44 C160,50 168,72 164,92 C160,118 128,128 100,124 C66,118 54,104 58,80 Z" fill="none" stroke="rgba(150,180,220,0.45)" stroke-width="1" stroke-dasharray="3 2"/>
+        <path d="M64,82 C68,56 96,48 118,52 C150,56 158,74 154,90 C150,112 122,120 100,116 C72,110 60,100 64,82 Z" fill="none" stroke="rgba(180,200,230,0.6)" stroke-width="1.1"/>
+        <path d="M76,82 C80,64 98,58 114,62 C138,66 144,78 140,90 C136,106 116,112 100,108 C80,102 72,96 76,82 Z" fill="none" stroke="rgba(200,215,240,0.75)" stroke-width="1.2"/>
+        <path d="M90,82 C92,72 102,68 110,72 C124,76 126,84 122,90 C118,98 106,100 98,96 C90,92 88,88 90,82 Z" fill="none" stroke="rgba(230,235,250,0.9)" stroke-width="1.3"/>
+        <g font-family="monospace" font-size="9" fill="#e8eef9" text-anchor="middle">
+          <text x="156" y="76" paint-order="stroke" stroke="#0b1a2a" stroke-width="2.5">20</text>
+          <text x="144" y="86" paint-order="stroke" stroke="#0b1a2a" stroke-width="2.5">22</text>
+          <text x="128" y="90" paint-order="stroke" stroke="#0b1a2a" stroke-width="2.5">24</text>
+          <text x="108" y="83" paint-order="stroke" stroke="#0b1a2a" stroke-width="2.5">26</text>
+        </g>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>C · 等值线 + 标注</h3>
+      <p>传统天气图风格,只画等值线+数值。<b>纯矢量 SVG</b>,信息密度高、干净。你现在的<b>气压等压线层已经是这个方向</b>了。</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:18px">也可以告诉我"想要 A+B 叠加"(色带填充 + 上面压一层等值线),这是最常见的高级组合。</p>

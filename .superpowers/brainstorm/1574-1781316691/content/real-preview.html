@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>真实数据 SVG 等值面原型</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0b1a2a; color:#e8eef9; font-family:system-ui,"Microsoft YaHei",sans-serif; }
+  .bar { padding:10px 14px; background:#0f2238; display:flex; gap:14px; align-items:center; flex-wrap:wrap; border-bottom:1px solid #1a3050; }
+  .bar h1 { font-size:14px; font-weight:600; }
+  .bar .meta { font-size:12px; opacity:.75; }
+  .legend { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11px; opacity:.9; }
+  .legend .strip { width:200px; height:10px; border-radius:2px; }
+  svg.map { width:100%; height:auto; display:block; background:#0b1a2a; }
+  .hint { padding:8px 14px; font-size:11px; opacity:.6; background:#0f2238; border-top:1px solid #1a3050; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>真实数据 SVG 等值面原型 · 青海温度 (A+C 叠加)</h1>
+  <span class="meta" id="meta">计算中…</span>
+  <div class="legend"><span>-20℃</span><div class="strip" id="legendStrip"></div><span>35℃</span></div>
+</div>
+<svg class="map" id="map" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+<div class="hint" id="hint">用 cmiss.json 青海温度站点 → IDW 插值网格 → Marching Squares 生成矢量等值面 path + 等值线 + 数值标注。全 SVG,无 Canvas。</div>
+
+<script>
+var STATIONS_DATA=[{"lat":39.217,"lng":101.6833,"t":19.6},{"lat":36.783,"lng":99.0833,"t":15},{"lat":38.633,"lng":103.0833,"t":15},{"lat":37.467,"lng":102.9,"t":14.4},{"lat":37.2,"lng":102.8667,"t":5.3},{"lat":37.917,"lng":102.6667,"t":15},{"lat":39.15,"lng":100.1667,"t":21.6},{"lat":39.083,"lng":100.2833,"t":22.6},{"lat":38.433,"lng":100.8167,"t":16.4},{"lat":38.8,"lng":101.0833,"t":20.7},{"lat":38.833,"lng":99.6167,"t":16.5},{"lat":36.983,"lng":103.1833,"t":12.7},{"lat":36.8,"lng":93.6833,"t":18.5},{"lat":36.417,"lng":94.9167,"t":19.7},{"lat":36.433,"lng":96.4333,"t":19.4},{"lat":36.3,"lng":98.1,"t":13.6},{"lat":34.217,"lng":92.4333,"t":12.8},{"lat":34.917,"lng":98.2167,"t":7.8},{"lat":34.483,"lng":100.2333,"t":11.6},{"lat":33.967,"lng":99.9,"t":10.9},{"lat":33.75,"lng":99.65,"t":11.3},{"lat":33.433,"lng":101.4833,"t":9.8},{"lat":32.933,"lng":100.75,"t":20.4},{"lat":38.817,"lng":98.4167,"t":13.3},{"lat":38.433,"lng":99.6,"t":12.8},{"lat":37.383,"lng":101.6167,"t":9.3},{"lat":36.9,"lng":100.9833,"t":15.2},{"lat":38.183,"lng":100.25,"t":17.8},{"lat":37.333,"lng":100.1333,"t":12.8},{"lat":36.817,"lng":101.95,"t":14.2},{"lat":36.5,"lng":102.1,"t":12.7},{"lat":36.333,"lng":102.8333,"t":20.2},{"lat":36.1,"lng":102.27,"t":15.3},{"lat":35.85,"lng":102.45,"t":19.7},{"lat":36.483,"lng":102.4167,"t":17.3},{"lat":32.983,"lng":98.1,"t":10.1},{"lat":31.8,"lng":98.5833,"t":23.8},{"lat":31.617,"lng":100,"t":24.6},{"lat":32.283,"lng":100.3333,"t":19.1},{"lat":36.267,"lng":100.6167,"t":19},{"lat":36.017,"lng":101.3667,"t":23.8},{"lat":35.583,"lng":99.9833,"t":14.9},{"lat":35.583,"lng":100.7333,"t":17},{"lat":35.25,"lng":100.6,"t":17.2},{"lat":38.25,"lng":90.85,"t":16.2},{"lat":37.367,"lng":97.3833,"t":17.2},{"lat":37.3,"lng":99.0167,"t":10.8},{"lat":38.75,"lng":93.3333,"t":17.1},{"lat":37.85,"lng":95.35,"t":13.3},{"lat":35.933,"lng":102.0167,"t":22.7},{"lat":35.55,"lng":102.0333,"t":20.4},{"lat":34.733,"lng":101.6,"t":13.5},{"lat":35.033,"lng":101.4667,"t":10.5},{"lat":36.683,"lng":101.25,"t":19.2},{"lat":36.583,"lng":100.4833,"t":10.7},{"lat":36.267,"lng":100.2667,"t":19.1},{"lat":36.733,"lng":101.75,"t":16.5},{"lat":33.583,"lng":102.9667,"t":16.9},{"lat":32.267,"lng":100.9667,"t":22.5},{"lat":32.9,"lng":101.7,"t":20.4},{"lat":31.9,"lng":102.2333,"t":29.6},{"lat":32.8,"lng":102.55,"t":18.3},{"lat":32.083,"lng":102.9833,"t":25.3},{"lat":31.883,"lng":93.7833,"t":16.3},{"lat":32.35,"lng":91.1,"t":12.9},{"lat":36.5,"lng":101.5833,"t":13.9},{"lat":36.95,"lng":101.6833,"t":17.1},{"lat":35.217,"lng":93.0833,"t":10.1},{"lat":34.117,"lng":95.8,"t":6.4},{"lat":33,"lng":96.9667,"t":19.9},{"lat":33.8,"lng":97.1333,"t":8.4},{"lat":32.2,"lng":96.4667,"t":17.5},{"lat":33.85,"lng":95.6167,"t":10.4},{"lat":32.883,"lng":95.2833,"t":14.3},{"lat":35.583,"lng":103.1833,"t":18.5},{"lat":35.183,"lng":102.5,"t":15.9},{"lat":34.6,"lng":102.5,"t":19.2},{"lat":34,"lng":102.0833,"t":12.8},{"lat":35,"lng":102.9,"t":16},{"lat":38.217,"lng":101.9333,"t":12.3},{"lat":36.933,"lng":98.4833,"t":15.5}];
+var TEMP_COLORS=[
+  {v:-20,c:[59,76,192]},{v:-10,c:[103,136,238]},{v:0,c:[158,187,255]},{v:5,c:[201,215,240]},
+  {v:10,c:[73,154,83]},{v:15,c:[113,180,87]},{v:18,c:[185,208,71]},{v:21,c:[236,208,52]},
+  {v:24,c:[241,157,40]},{v:28,c:[223,83,39]},{v:35,c:[177,22,34]}
+];
+function rgb(c){return "rgb("+c[0]+","+c[1]+","+c[2]+")";}
+function colorFor(v){
+  if(v<=TEMP_COLORS[0].v)return rgb(TEMP_COLORS[0].c);
+  var last=TEMP_COLORS[TEMP_COLORS.length-1];
+  if(v>=last.v)return rgb(last.c);
+  for(var i=0;i<TEMP_COLORS.length-1;i++){
+    var a=TEMP_COLORS[i],b=TEMP_COLORS[i+1];
+    if(v>=a.v&&v<=b.v){
+      var t=(v-a.v)/(b.v-a.v);
+      return rgb([a.c[0]+(b.c[0]-a.c[0])*t|0,a.c[1]+(b.c[1]-a.c[1])*t|0,a.c[2]+(b.c[2]-a.c[2])*t|0]);
+    }
+  }
+  return "#888";
+}
+
+var svg=document.getElementById("map");
+var meta=document.getElementById("meta");
+
+new Promise(function(res){res(STATIONS_DATA);}).then(function(pts){
+  if(!pts.length){meta.textContent="无数据";return;}
+
+  var minLat=Infinity,maxLat=-Infinity,minLng=Infinity,maxLng=-Infinity;
+  pts.forEach(function(p){
+    minLat=Math.min(minLat,p.lat);maxLat=Math.max(maxLat,p.lat);
+    minLng=Math.min(minLng,p.lng);maxLng=Math.max(maxLng,p.lng);
+  });
+  var padLat=(maxLat-minLat)*0.06||0.5, padLng=(maxLng-minLng)*0.06||0.5;
+  minLat-=padLat;maxLat+=padLat;minLng-=padLng;maxLng+=padLng;
+
+  var cols=180;
+  var aspect=(maxLat-minLat)/(maxLng-minLng)||1;
+  var rows=Math.max(40,Math.round(cols*aspect));
+
+  // IDW 网格
+  var grid=new Float32Array(cols*rows);
+  var cosLat0=Math.cos(((minLat+maxLat)/2)*Math.PI/180);
+  var smoothing=2500;
+  for(var gy=0;gy<rows;gy++){
+    var lat=maxLat-(gy+0.5)/rows*(maxLat-minLat);
+    for(var gx=0;gx<cols;gx++){
+      var lng=minLng+(gx+0.5)/cols*(maxLng-minLng);
+      var num=0,den=0,hit=false;
+      for(var i=0;i<pts.length;i++){
+        var p=pts[i];
+        var dl=(p.lng-lng)*cosLat0*111, da=(p.lat-lat)*111;
+        var d2=dl*dl+da*da;
+        if(d2<1e-4){num=p.t;den=1;hit=true;break;}
+        var w=1/(d2+smoothing);
+        num+=p.t*w;den+=w;
+      }
+      grid[gy*cols+gx]=num/den;
+    }
+  }
+
+  var gMin=Infinity,gMax=-Infinity;
+  for(var k=0;k<grid.length;k++){gMin=Math.min(gMin,grid[k]);gMax=Math.max(gMax,grid[k]);}
+
+  // levels 细色阶
+  var step=2;
+  var levels=[];
+  for(var v=Math.floor(gMin/step)*step+step;v<gMax;v+=step)levels.push(Math.round(v*10)/10);
+
+  // Marching Squares: 对一个阈值生成闭合环
+  function trace(level){
+    var segs=[];
+    function pe(edge,gx,gy,tl,tr,br,bl){
+      if(edge==="top"){var t=(level-tl)/((tr-tl)||1e-9);return [gx+t,gy];}
+      if(edge==="right"){var t2=(level-tr)/((br-tr)||1e-9);return [gx+1,gy+t2];}
+      if(edge==="bottom"){var t3=(level-bl)/((br-bl)||1e-9);return [gx+t3,gy+1];}
+      if(edge==="left"){var t4=(level-tl)/((bl-tl)||1e-9);return [gx,gy+t4];}
+    }
+    for(var gy2=0;gy2<rows-1;gy2++){
+      for(var gx2=0;gx2<cols-1;gx2++){
+        var tl=grid[gy2*cols+gx2],tr=grid[gy2*cols+gx2+1],br=grid[(gy2+1)*cols+gx2+1],bl=grid[(gy2+1)*cols+gx2];
+        var code=0;
+        if(tl>=level)code|=8; if(tr>=level)code|=4; if(br>=level)code|=2; if(bl>=level)code|=1;
+        var s=null;
+        switch(code){
+          case 1: case 14: s=[pe("left",gx2,gy2,tl,tr,br,bl),pe("bottom",gx2,gy2,tl,tr,br,bl)]; break;
+          case 2: case 13: s=[pe("bottom",gx2,gy2,tl,tr,br,bl),pe("right",gx2,gy2,tl,tr,br,bl)]; break;
+          case 3: case 12: s=[pe("left",gx2,gy2,tl,tr,br,bl),pe("right",gx2,gy2,tl,tr,br,bl)]; break;
+          case 4: case 11: s=[pe("top",gx2,gy2,tl,tr,br,bl),pe("right",gx2,gy2,tl,tr,br,bl)]; break;
+          case 6: case 9: s=[pe("top",gx2,gy2,tl,tr,br,bl),pe("bottom",gx2,gy2,tl,tr,br,bl)]; break;
+          case 7: case 8: s=[pe("left",gx2,gy2,tl,tr,br,bl),pe("top",gx2,gy2,tl,tr,br,bl)]; break;
+          case 5: segs.push([pe("left",gx2,gy2,tl,tr,br,bl),pe("top",gx2,gy2,tl,tr,br,bl)]); s=[pe("bottom",gx2,gy2,tl,tr,br,bl),pe("right",gx2,gy2,tl,tr,br,bl)]; break;
+          case 10: segs.push([pe("left",gx2,gy2,tl,tr,br,bl),pe("bottom",gx2,gy2,tl,tr,br,bl)]); s=[pe("top",gx2,gy2,tl,tr,br,bl),pe("right",gx2,gy2,tl,tr,br,bl)]; break;
+        }
+        if(s)segs.push(s);
+      }
+    }
+    // 连接端点成环
+    function key(p){return p[0].toFixed(3)+"_"+p[1].toFixed(3);}
+    var map={};
+    segs.forEach(function(s,i){
+      [0,1].forEach(function(e){
+        var k=key(s[e]); if(!map[k])map[k]=[]; map[k].push({i:i,e:e});
+      });
+    });
+    var used=new Array(segs.length).fill(false);
+    var rings=[];
+    for(var i2=0;i2<segs.length;i2++){
+      if(used[i2])continue;
+      used[i2]=true;
+      var ring=[segs[i2][0],segs[i2][1]];
+      var cur=segs[i2][1],guard=0;
+      while(guard++<20000){
+        var cands=(map[key(cur)]||[]).filter(function(e){return !used[e.i];});
+        if(cands.length===0)break;
+        var nx=cands[0];
+        used[nx.i]=true;
+        cur=segs[nx.i][1-nx.e];
+        if(key(cur)===key(ring[0]))break;
+        ring.push(cur);
+      }
+      if(ring.length>=3)rings.push(ring);
+    }
+    return rings;
+  }
+
+  var vbW=cols-1, vbH=rows-1;
+  svg.setAttribute("viewBox","0 0 "+vbW+" "+vbH);
+
+  var html="";
+  // 铺底(最冷色)
+  html+='<rect x="0" y="0" width="'+vbW+'" height="'+vbH+'" fill="'+colorFor(gMin)+'"/>';
+  var labelLevels=[];
+  levels.forEach(function(lv,idx){
+    var rings=trace(lv);
+    if(!rings.length)return;
+    var d="";
+    rings.forEach(function(r){d+="M"+r.map(function(p){return p[0].toFixed(2)+","+p[1].toFixed(2);}).join("L")+"Z";});
+    // 等值面填充
+    html+='<path d="'+d+'" fill="'+colorFor(lv)+'" fill-opacity="1"/>';
+    // 等值线
+    html+='<path d="'+d+'" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="'+(vbW*0.0012).toFixed(3)+'"/>';
+    if(idx%2===0){
+      var r0=rings[0], mid=r0[Math.floor(r0.length/2)];
+      labelLevels.push({x:mid[0],y:mid[1],v:lv});
+    }
+  });
+  // 数值标注
+  var fs=(vbH*0.026).toFixed(2), sw=(vbH*0.007).toFixed(2);
+  labelLevels.forEach(function(l){
+    html+='<text x="'+l.x.toFixed(2)+'" y="'+l.y.toFixed(2)+'" font-size="'+fs+'" fill="#fff" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="#0b1a2a" stroke-width="'+sw+'" font-family="monospace">'+l.v+'</text>';
+  });
+  svg.innerHTML=html;
+
+  meta.textContent="站点 "+pts.length+" | 网格 "+cols+"×"+rows+" | 等值面 "+levels.length+" 档(每"+step+"℃) | 场范围 "+gMin.toFixed(1)+"~"+gMax.toFixed(1)+"℃";
+
+  var stops=TEMP_COLORS.map(function(c){return rgb(c.c)+" "+(((c.v+20)/55)*100).toFixed(0)+"%";}).join(",");
+  document.getElementById("legendStrip").style.background="linear-gradient(to right,"+stops+")";
+}).catch(function(err){
+  meta.textContent="加载失败: "+err.message+" (stations.json 可能未被服务器提供)";
+});
+</script>
+</body>
+</html>

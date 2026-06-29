@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(node -c \"c:/Users/李伟/Desktop/气象地图预研/map.js\")",
+      "Read(//c/Users/李伟/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/**)",
+      "Bash(bash \"C:/Users/李伟/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh\" --project-dir \"C:/Users/李伟/Desktop/气象地图预研\")",
+      "Bash(python -c \"import json;d=json.load\\(open\\('cmiss.json',encoding='utf-8'\\)\\);c=d.get\\('data',{}\\).get\\('contours',[]\\);print\\('contours 站点数:',len\\(c\\)\\);print\\('单站字段数:',len\\(c[0]\\) if c else 0\\);print\\('首站样本:',c[0] if c else None\\)\")",
+      "Bash(node -e \"const d=require\\('./cmiss.json'\\);const c=\\(d.data&&d.data.contours\\)||[];console.log\\('contours 站点数:',c.length\\);console.log\\('单站字段数:',c[0]?c[0].length:0\\);console.log\\('首站样本:',JSON.stringify\\(c[0]\\)\\)\")",
+      "Bash(node -e \"const d=require\\('./wind.json'\\);const h=d[0]&&d[0].header;console.log\\('header:',JSON.stringify\\(h\\)\\);console.log\\('分量数:',d.length,'每分量像素数:',h?\\(h.nx*h.ny\\):0\\)\")",
+      "Bash(node -e \"const d=require\\('./cmiss.json'\\);const c=\\(d.data&&d.data.contours\\)||[];let lats=c.map\\(s=>s[2]\\),lngs=c.map\\(s=>s[1]\\);console.log\\('纬度范围:',Math.min\\(...lats\\).toFixed\\(2\\),'~',Math.max\\(...lats\\).toFixed\\(2\\)\\);console.log\\('经度范围:',Math.min\\(...lngs\\).toFixed\\(2\\),'~',Math.max\\(...lngs\\).toFixed\\(2\\)\\);const temp=c.filter\\(s=>s[19]!==9999\\);console.log\\('有温度的站点数:',temp.length\\)\")",
+      "Bash(sed -i 's/fill-opacity=\"0.55\"/fill-opacity=\"1\"/' \".superpowers/brainstorm/1574-1781316691/content/real-preview.html\")",
+      "Bash(curl -s -o /dev/null -w \"stations.json HTTP状态: %{http_code}\\\\n\" \"http://localhost:49440/stations.json\")",
+      "Bash(curl -sL \"https://cdn.jsdelivr.net/npm/leaflet-velocity@1.2.3/dist/leaflet-velocity.js\" -o /tmp/lv-src.js)",
+      "Read(//tmp/**)",
+      "Bash(cp /tmp/lv-src.js \"/c/Users/李伟/Desktop/气象地图预研/.lv-src-tmp.js\" && echo \"copied\" && grep -nE \"onAdd:|onRemove:|needRedraw|_clearAndRedraw|_initCanvas|addTo:|_redraw\\\\b|_frame\\\\b|this\\\\._map\\\\b|_buildBounds|_draw\\\\b\" \"/c/Users/李伟/Desktop/气象地图预研/.lv-src-tmp.js\")",
+      "Read(//c/c/Users/李伟/Desktop/气象地图预研/**)",
+      "Bash(unzip -p \"接口文档.docx\" word/document.xml)",
+      "Bash(node -e 'const fs=require\\(\"fs\"\\);const C={1:\"晴\",8:\"多云\",13:\"阴\",26:\"雾\",29:\"沙尘暴\",30:\"浮尘\",32:\"扬沙\",34:\"霾\",49:\"雨夹雪\",51:\"小雨\",53:\"中雨\",54:\"大雨\",55:\"暴雨\",56:\"大暴雨\",57:\"特大暴雨\",58:\"小雪\",60:\"中雪\",62:\"大雪\",63:\"暴雪\"};const codes=Object.keys\\(C\\);const miss=codes.filter\\(c=>!fs.existsSync\\(\"weather/base/rs/img/tq-\"+c+\".png\"\\)\\);console.log\\(\"电码总数:\",codes.length\\);console.log\\(\"缺失图片:\",miss.length?miss.join\\(\", \"\\):\"无 ✓\"\\);console.log\\(\"抽查映射 53→\"+C[\"53\"]+\", 1→\"+C[\"1\"]+\", 63→\"+C[\"63\"]+\", 49→\"+C[\"49\"]\\);console.log\\(\"缺测兜底 9999→\"+\\(C[\"9999\"]||\"undefined，将兜底为 \"+C[\"13\"]\\)\\);')",
+      "Bash(PYTHONIOENCODING=utf-8 python)",
+      "Bash(node --check \"c:/Users/李伟/Desktop/气象地图预研/weather/pgm/map.js\")",
+      "Bash(node --check \"c:/Users/李伟/Desktop/气象地图预研/weather/pgm/index.js\")",
+      "Bash(python -m http.server 8765 --directory \"c:/Users/李伟/Desktop/气象地图预研/weather\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8765/pgm/index.html)",
+      "Bash(node -e \"const d=require\\('./cmiss.json'\\); console.log\\('keys:', Object.keys\\(d\\)\\); const arr=Array.isArray\\(d.data\\)?d.data:[]; console.log\\('时间步数:', arr.length\\); if\\(arr[0]\\){const c=arr[0].contours||[]; console.log\\('首步站点数:', c.length\\); console.log\\('单站字段数:', c[0]?c[0].length:0\\); console.log\\('首步 date:', arr[0].date\\);}\")",
+      "Bash(node -e \"const d=require\\('./cmiss.json'\\);const a=d.data;for\\(let t=0;t<3;t++\\){const c=a[t].contours||[];let mn=1e9,mx=-1e9,sum=0,n=0;for\\(const s of c\\){const p=s[8];if\\(p<9999\\){if\\(p<mn\\)mn=p;if\\(p>mx\\)mx=p;sum+=p;n++;}}console.log\\('step',t,'气压 min/max/avg:',mn.toFixed\\(1\\),mx.toFixed\\(1\\),\\(sum/n\\).toFixed\\(1\\)\\);} const c0=a[0].contours||[],c1=a[1].contours||[];let dmax=0,dsum=0,dn=0;for\\(let i=0;i<c0.length;i++\\){const dd=Math.abs\\(c0[i][8]-c1[i][8]\\);if\\(dd>dmax\\)dmax=dd;dsum+=dd;dn++;}console.log\\('step0→1 每站气压差: max',dmax.toFixed\\(2\\),'avg',\\(dsum/dn\\).toFixed\\(3\\),'hPa'\\);\")",
+      "Bash(node -e \"const d=require\\('./cmiss.json'\\);const a=d.data;const all=[];for\\(let t=0;t<a.length;t++\\){for\\(const s of \\(a[t].contours||[]\\)\\){const p=s[8];if\\(p<9990&&p>-990\\)all.push\\(p\\);}}all.sort\\(\\(x,y\\)=>x-y\\);const lo=all[Math.floor\\(all.length*0.02\\)],hi=all[Math.floor\\(all.length*0.98\\)];console.log\\('气压 p2/p98 主体范围:',lo.toFixed\\(1\\),'~',hi.toFixed\\(1\\),'hPa'\\);\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8765/index.html)",
+      "Bash(curl -s http://localhost:8765/../base/rs/js/cmiss.json)",
+      "Bash(timeout 180 npm i puppeteer --no-save --registry=https://registry.npmmirror.com)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npm root *)",
+      "Bash(node -e *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}
