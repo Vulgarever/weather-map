@@ -104,7 +104,7 @@ CMISS_DATA
 precision highp float;
 varying vec2 v_ndc;
 uniform sampler2D u_baseMap;        // 底图（与 stage0 同源）
-uniform sampler2D u_data;           // IDW 归一化数据纹理（RGBA8，仅 R 通道有效）
+uniform sampler2D u_data;           // IDW 归一化数据纹理（LUMINANCE 单通道，着色器取 .r）
 uniform sampler2D u_lut;            // 1D LUT 色带纹理（1xN，含 RGBA）
 uniform vec2 u_resolution;
 uniform float u_centerLng, u_centerLat, u_pxPerDeg;   // 复用 stage0 view uniform
@@ -156,9 +156,9 @@ void main() {
 ### 6.3 数据纹理
 
 - 尺寸：240 × rows（rows 由 bounds 长宽比算出，与现有 `computeFloatGrid` 一致）。
-- 格式：RGBA8，UNPACK_FLIP_Y=false，仅 R 通道存归一化值。
-- 归一化：`norm = clamp((val - min)/(max - min), 0, 1)`，min/max 取自 `METEO_CONFIG[type]`（rain/snow 的 min 特殊处理为 0，对齐现有 `getFastLUT`）。
-- 滤波：NEAREST（手动双线性在着色器内做）。
+- 格式：**WebGL1 原生 `LUMINANCE` 单通道**（归一化值 0–255，`texImage2D` 用 `LUMINANCE/UNSIGNED_BYTE`）。免 float 扩展、零 RGBA8 填充浪费；着色器内 `.r` 取值。若后续阶段需要更高精度再升级 float。
+- 归一化：`norm = clamp((val - min)/(max - min), 0, 1)` → `round(norm*255)`，min/max 取自 `METEO_CONFIG[type]`（rain/snow 的 min 特殊处理为 0，对齐现有 `getFastLUT`）。
+- 滤波：NEAREST（手动双线性在着色器内做，见 §6.2）。
 - 上传：`setElement(type, timeIndex)` 时重算 IDW 并 `texSubImage2D` 更新。
 
 ### 6.4 LUT 纹理
