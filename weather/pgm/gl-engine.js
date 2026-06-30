@@ -176,6 +176,21 @@ var GLEngine = (function () {
                 GLProj.applyView(view, fit);
                 return api;
             },
+            getZoom: function () { return view.zoom; },
+            getView: function () {
+                return {
+                    centerLng: view.centerLng,
+                    centerLat: view.centerLat,
+                    zoom: view.zoom,
+                    width: view.width,
+                    height: view.height,
+                    pxPerDeg: view.pxPerDeg,
+                };
+            },
+            setZoom: function (z) {
+                GLProj.applyView(view, { zoom: z });
+                return api;
+            },
         };
         return api;
     }

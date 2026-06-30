@@ -37,6 +37,7 @@
       paddingTopLeft: [88, 60],
       paddingBottomRight: [250, 60],
     });
+    console.log('[fitBounds] result =', engine.getView());
     engine.on('click', function (e) {
       console.log('[click] lng,lat =', e.lng.toFixed(3) + ',' + e.lat.toFixed(3), ' px=', e.px.toFixed(0) + ',' + e.py.toFixed(0));
     });
