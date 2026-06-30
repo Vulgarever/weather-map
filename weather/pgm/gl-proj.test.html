@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>gl-proj 纯函数测试</title>
+<style>
+  body { font-family: monospace; padding: 20px; background:#111; color:#eee; }
+  .pass { color: #6f6; }
+  .fail { color: #f66; font-weight: bold; }
+  #out { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h2>gl-proj 测试</h2>
+<div id="out"></div>
+<script src="./gl-proj.js"></script>
+<script>
+(function () {
+  var out = document.getElementById('out');
+  var pass = 0, fail = 0;
+  function approx(a, b, eps) { eps = eps == null ? 1e-6 : eps; return Math.abs(a - b) < eps; }
+  function eq(a, b) { return Array.isArray(a) ? a.length === b.length && a.every(function (x, i) { return approx(x, b[i]); }) : approx(a, b); }
+  function assert(name, actual, expected) {
+    var ok = eq(actual, expected);
+    out.innerHTML += (ok ? '<span class="pass">✓</span> ' : '<span class="fail">✗</span> ') + name + (ok ? '' : '\n   期望: ' + JSON.stringify(expected) + '\n   实际: ' + JSON.stringify(actual)) + '\n';
+    ok ? pass++ : fail++;
+  }
+
+  var v = GLProj.makeView(96.2, 35.4, 6, 1200, 800, { minZoom: 4, maxZoom: 12 });
+  assert('makeView.pxPerDeg (zoom6 → 64)', v.pxPerDeg, 64);
+  assert('makeView 存 minZoom', v.minZoom, 4);
+  assert('makeView 存 maxZoom', v.maxZoom, 12);
+
+  // round-trip: project → unproject 回到原值
+  var ll = [100.0, 37.0];
+  var px = GLProj.project(ll, v);
+  var back = GLProj.unproject(px, v);
+  assert('round-trip project/unproject', back, ll);
+
+  // 中心点投影到屏幕中心
+  assert('中心投影到视口中心', GLProj.project([96.2, 35.4], v), [600, 400]);
+
+  // clampZoom
+  assert('clampZoom 上限', GLProj.clampZoom(20, 4, 12), 12);
+  assert('clampZoom 下限', GLProj.clampZoom(1, 4, 12), 4);
+  assert('clampZoom 区间内不变', GLProj.clampZoom(7, 4, 12), 7);
+
+  // clampCenter 限制在 bounds 内
+  var b = [[31.5, 89.4], [39.3, 103.2]];
+  assert('clampCenter 越界西', GLProj.clampCenter(80, 35, b), [89.4, 35]);
+  assert('clampCenter 越界东', GLProj.clampCenter(110, 35, b), [103.2, 35]);
+  assert('clampCenter 越界南', GLProj.clampCenter(96, 30, b), [96, 31.5]);
+  assert('clampCenter 区间内不变', GLProj.clampCenter(96, 35, b), [96, 35]);
+
+  // zoomAt: 锚点经纬度缩放后不变
+  var anchor = [700, 300];
+  var r = GLProj.zoomAt(v, 8, anchor);
+  var v2 = GLProj.makeView(r.centerLng, r.centerLat, r.zoom, 1200, 800, { minZoom: 4, maxZoom: 12 });
+  assert('zoomAt 锚点经纬度不变', GLProj.unproject(anchor, v2), GLProj.unproject(anchor, v));
+  assert('zoomAt zoom 钳到上限', GLProj.zoomAt(v, 99, anchor).zoom, 12);
+
+  // fitBounds: 完整容纳青海
+  var fit = GLProj.fitBounds(b, 1200, 800, [88, 60, 250, 60], { minZoom: 4, maxZoom: 12 });
+  assert('fitBounds 中心经度', fit.centerLng, (89.4 + 103.2) / 2);
+  assert('fitBounds 中心纬度', fit.centerLat, (31.5 + 39.3) / 2);
+  // 容纳后青海应铺满可视区（可视宽 1200-88-250=862，青海经度跨度 13.8 → pxPerDegX≈62.5；可视高 800-60-60=680，纬度跨度 7.8 → pxPerDegY≈87；取小≈62.5 → zoom≈log2(62.5)≈5.97）
+  assert('fitBounds zoom≈5.97', approx(fit.zoom, Math.log2(Math.min(862 / 13.8, 680 / 7.8)), 1e-3), true);
+
+  out.innerHTML += '\n---- ' + pass + ' passed, ' + fail + ' failed ----';
+})();
+</script>
+</body>
+</html>
