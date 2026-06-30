@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>gl-meteo 纯函数测试</title>
+<style>
+  body { font-family: monospace; padding: 20px; background:#111; color:#eee; }
+  .pass { color: #6f6; }
+  .fail { color: #f66; font-weight: bold; }
+  #out { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h2>gl-meteo 测试（Task 1：插值核心）</h2>
+<div id="out"></div>
+<script src="./gl-meteo.js"></script>
+<script>
+(function () {
+  var out = document.getElementById('out');
+  var pass = 0, fail = 0;
+  function approx(a, b, eps) { eps = eps == null ? 1e-6 : eps; return Math.abs(a - b) < eps; }
+  function eq(a, b) { return Array.isArray(a) ? a.length === b.length && a.every(function (x, i) { return approx(x, b[i]); }) : approx(a, b); }
+  function assert(name, actual, expected) {
+    var ok = eq(actual, expected);
+    out.innerHTML += (ok ? '<span class="pass">✓</span> ' : '<span class="fail">✗</span> ') + name + (ok ? '' : '\n   期望: ' + JSON.stringify(expected) + '\n   实际: ' + JSON.stringify(actual)) + '\n';
+    ok ? pass++ : fail++;
+  }
+
+  // resolveMeteoType 映射
+  assert('resolveMeteoType wind → windSpeed', GLMeteo.resolveMeteoType('wind'), 'windSpeed');
+  assert('resolveMeteoType windSpeed → windSpeed', GLMeteo.resolveMeteoType('windSpeed'), 'windSpeed');
+  assert('resolveMeteoType isobar → pressure', GLMeteo.resolveMeteoType('isobar'), 'pressure');
+  assert('resolveMeteoType temp → temp', GLMeteo.resolveMeteoType('temp'), 'temp');
+
+  // extractPointsFromContours：假站点数组（28 元素，对齐 cmiss 结构）
+  var fake = [
+    ["id1", 100.0, 37.0, 9999, "1", 5.5, 180, "3", 950.0, 60, 700, 30, 0.2, 9999, 9999, 9999, 9999, 9999, 9999, 15.5, 9999, 9999, 9999, 9999, 9999, 9999, false, "站A"],
+  ];
+  var tempPts = GLMeteo.extractPointsFromContours('temp', fake);
+  assert('extract temp 点数', tempPts.length, 1);
+  assert('extract temp 经度', tempPts[0].lng, 100.0);
+  assert('extract temp 纬度', tempPts[0].lat, 37.0);
+  assert('extract temp 值(s[19])', tempPts[0].value, 15.5);
+  var rainPts = GLMeteo.extractPointsFromContours('rain', fake);
+  assert('extract rain 值(s[12])', rainPts[0].value, 0.2);
+  var presPts = GLMeteo.extractPointsFromContours('pressure', fake);
+  assert('extract pressure 值(s[8])', presPts[0].value, 950.0);
+  var windPts = GLMeteo.extractPointsFromContours('windSpeed', fake);
+  assert('extract windSpeed 值(s[5])', windPts[0].value, 5.5);
+
+  // extractPointsFromContours：缺测值过滤
+  var miss = [["id2", 101.0, 38.0, 9999, "1", 9999, 180, "3", 9999, 60, 700, 30, 0.2, 9999, 9999, 9999, 9999, 9999, 9999, 9999, 9999, 9999, 9999, 9999, 9999, 9999, false, "站B"]];
+  assert('缺测 windSpeed 被过滤', GLMeteo.extractPointsFromContours('windSpeed', miss).length, 0);
+
+  // computeFloatGrid：单点，格点 (gx=2,gy=2) 恰好落在站点 (37.0,100.0) 上，应取该点值
+  var g = GLMeteo.computeFloatGrid([{ lat: 37.0, lng: 100.0, value: 15.5 }], 'temp', 4, 4, 99.0, 101.0, 36.0, 38.0);
+  assert('computeFloatGrid cols', g.cols, 4);
+  assert('computeFloatGrid rows', g.rows, 4);
+  assert('computeFloatGrid west', g.west, 99.0);
+  assert('computeFloatGrid north', g.north, 38.0);
+  // 单点 IDW：站点恰落格点 → 该格点 sumW 极大，值=15.5；其余格点最近邻兜底也≈15.5
+  assert('computeFloatGrid 站点格点≈值', approx(g.grid[2 * 4 + 2], 15.5, 1e-3), true);
+  assert('computeFloatGrid 角点≈值(最近邻兜底)', approx(g.grid[0], 15.5, 1e-3), true);
+
+  out.innerHTML += '\n' + (fail === 0 ? '<span class="pass">全部通过 ' + pass + '/' + (pass+fail) + '</span>' : '<span class="fail">失败 ' + fail + '/' + (pass+fail) + '</span>');
+})();
+</script>
+</body>
+</html>
