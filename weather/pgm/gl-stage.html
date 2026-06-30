@@ -44,6 +44,8 @@
     engine.on('moveend', function (e) {
       console.log('[moveend] center=', e.center.map(function (x) { return x.toFixed(3); }), ' zoom=', e.zoom.toFixed(2));
     });
+    engine.showLoading();
+    setTimeout(function () { engine.hideLoading(); }, 800);
   </script>
 </body>
 </html>

@@ -139,6 +139,11 @@ var GLEngine = (function () {
             gl.bindTexture(gl.TEXTURE_2D, baseTexture);
             gl.uniform1i(U.baseMap, 0);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
+            for (var i = 0; i < layers.length; i++) {
+                if (layers[i] && typeof layers[i].render === 'function') {
+                    layers[i].render(gl, view, api);
+                }
+            }
             requestAnimationFrame(render);
         }
         requestAnimationFrame(render);
@@ -153,6 +158,32 @@ var GLEngine = (function () {
         function emit(name, payload) {
             (listeners[name] || []).forEach(function (fn) { try { fn(payload); } catch (e) { console.error(e); } });
         }
+
+        /* ---- 加载遮罩（计数式，对齐 map.js 语义） ---- */
+        var loadingDepth = 0, loadingMask = null;
+        function ensureLoadingMask() {
+            if (loadingMask) return loadingMask;
+            loadingMask = document.createElement('div');
+            loadingMask.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
+                + 'background:rgba(0,0,0,0.45);opacity:0;transition:opacity .2s;z-index:2000;pointer-events:none;';
+            loadingMask.innerHTML = '<div style="color:#fff;font-family:sans-serif;">加载中…</div>';
+            container.appendChild(loadingMask);
+            return loadingMask;
+        }
+        function showLoading() {
+            var first = loadingDepth === 0;
+            loadingDepth++;
+            var m = ensureLoadingMask();
+            if (first) { void m.offsetWidth; m.style.opacity = '1'; m.style.pointerEvents = 'auto'; }
+            return api;
+        }
+        function hideLoading() {
+            if (loadingDepth > 0) loadingDepth--;
+            if (loadingDepth === 0 && loadingMask) { loadingMask.style.opacity = '0'; loadingMask.style.pointerEvents = 'none'; }
+            return api;
+        }
+
+        var layers = [];
 
         /* ---- 交互：拖拽平移 / 滚轮光标为中心 / 双击放大 ---- */
         var dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0, moved = false;
@@ -278,6 +309,21 @@ var GLEngine = (function () {
                 GLProj.applyView(view, { centerLng: lngLat[0], centerLat: lngLat[1], zoom: zoom });
                 emit('moveend', { center: [view.centerLng, view.centerLat], zoom: view.zoom });
                 return api;
+            },
+            showLoading: showLoading,
+            hideLoading: hideLoading,
+            /* 图层容器：为阶段 1/3/4 填色/粒子/等压线层预留。每帧遍历调用 layer.render(gl, view, api)。 */
+            addLayer: function (layer) { layers.push(layer); return api; },
+            removeLayer: function (layer) {
+                layers = layers.filter(function (l) { return l !== layer; });
+                return api;
+            },
+            destroy: function () {
+                window.removeEventListener('resize', resize);
+                if (loadingMask && loadingMask.parentNode) loadingMask.parentNode.removeChild(loadingMask);
+                gl.deleteBuffer(buf);
+                gl.deleteTexture(baseTexture);
+                if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
             },
         };
         return api;
