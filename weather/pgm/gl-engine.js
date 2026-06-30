@@ -143,6 +143,75 @@ var GLEngine = (function () {
         }
         requestAnimationFrame(render);
 
+        /* ---- 事件总线 ---- */
+        var listeners = {};
+        function on(name, fn) { (listeners[name] || (listeners[name] = [])).push(fn); }
+        function off(name, fn) {
+            var arr = listeners[name]; if (!arr) return;
+            listeners[name] = arr.filter(function (f) { return f !== fn; });
+        }
+        function emit(name, payload) {
+            (listeners[name] || []).forEach(function (fn) { try { fn(payload); } catch (e) { console.error(e); } });
+        }
+
+        /* ---- 交互：拖拽平移 / 滚轮光标为中心 / 双击放大 ---- */
+        var dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0, moved = false;
+
+        function clientToPx(clientX, clientY) {
+            var rect = canvas.getBoundingClientRect();
+            return [clientX - rect.left, clientY - rect.top];
+        }
+
+        canvas.addEventListener('pointerdown', function (e) {
+            dragging = true; moved = false;
+            lastX = e.clientX; lastY = e.clientY;
+            downX = e.clientX; downY = e.clientY;
+            try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        });
+        canvas.addEventListener('pointermove', function (e) {
+            if (!dragging) return;
+            var dx = e.clientX - lastX, dy = e.clientY - lastY;
+            if (Math.abs(e.clientX - downX) > 3 || Math.abs(e.clientY - downY) > 3) moved = true;
+            lastX = e.clientX; lastY = e.clientY;
+            /* 地图跟随光标：光标右移 dx>0 → 视野左移 → centerLng 减小；下移 dy>0 → centerLat 增大 */
+            view.centerLng -= dx / view.pxPerDeg;
+            view.centerLat += dy / view.pxPerDeg;
+            if (baseBounds) {
+                var c = GLProj.clampCenter(view.centerLng, view.centerLat, baseBounds);
+                view.centerLng = c[0]; view.centerLat = c[1];
+            }
+        });
+        function endDrag(e) {
+            if (!dragging) return;
+            dragging = false;
+            if (!moved) {
+                var px = clientToPx(e.clientX, e.clientY);
+                var ll = GLProj.unproject(px, view);
+                emit('click', { lng: ll[0], lat: ll[1], px: px[0], py: px[1] });
+            } else {
+                emit('moveend', { center: [view.centerLng, view.centerLat], zoom: view.zoom });
+            }
+        }
+        canvas.addEventListener('pointerup', endDrag);
+        canvas.addEventListener('pointercancel', endDrag);
+
+        canvas.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var px = clientToPx(e.clientX, e.clientY);
+            var newZoom = view.zoom - Math.sign(e.deltaY) * 0.5;
+            var r = GLProj.zoomAt(view, newZoom, px);
+            GLProj.applyView(view, r);
+            emit('moveend', { center: [view.centerLng, view.centerLat], zoom: view.zoom });
+        }, { passive: false });
+
+        canvas.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            var px = clientToPx(e.clientX, e.clientY);
+            var r = GLProj.zoomAt(view, view.zoom + 1, px);
+            GLProj.applyView(view, r);
+            emit('moveend', { center: [view.centerLng, view.centerLat], zoom: view.zoom });
+        });
+
         /* ---- 对外（Task 3/4/5 扩展，先占位最小集） ---- */
         var api = {
             _gl: gl,
@@ -189,6 +258,25 @@ var GLEngine = (function () {
             },
             setZoom: function (z) {
                 GLProj.applyView(view, { zoom: z });
+                return api;
+            },
+            on: on,
+            off: off,
+            project: function (lngLat) { return GLProj.project(lngLat, view); },
+            unproject: function (pxPy) { return GLProj.unproject(pxPy, view); },
+            panBy: function (dpxPy) {
+                view.centerLng -= dpxPy[0] / view.pxPerDeg;
+                view.centerLat += dpxPy[1] / view.pxPerDeg;
+                if (baseBounds) {
+                    var c = GLProj.clampCenter(view.centerLng, view.centerLat, baseBounds);
+                    view.centerLng = c[0]; view.centerLat = c[1];
+                }
+                emit('moveend', { center: [view.centerLng, view.centerLat], zoom: view.zoom });
+                return api;
+            },
+            flyTo: function (lngLat, zoom) {
+                GLProj.applyView(view, { centerLng: lngLat[0], centerLat: lngLat[1], zoom: zoom });
+                emit('moveend', { center: [view.centerLng, view.centerLat], zoom: view.zoom });
                 return api;
             },
         };
