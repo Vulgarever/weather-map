@@ -658,3 +658,57 @@ html {
 .leaflet-control-attribution {
     display: none !important;
 }
+
+/* ============================================================
+   地图加载中遮罩：仅覆盖 #weather-map 地图区
+   显隐用 opacity+visibility 过渡(非 display)，避免硬切突兀；
+   visibility:hidden 时不参与命中测试，等价于关闭拦截。
+   ============================================================ */
+.wm-loading-mask {
+    position: absolute;
+    inset: 0;
+    z-index: 2000; /* 高于 Leaflet 控件容器(默认1000)及所有地图 pane，确保盖在最上层 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.wm-loading-mask.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+.wm-loading-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    user-select: none;
+    transform: scale(0.92); /* 渐入时轻微放大弹出，渐出反向收缩 */
+    transition: transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+.wm-loading-mask.is-visible .wm-loading-box {
+    transform: scale(1);
+}
+.wm-loading-spinner {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.25);
+    border-top-color: #ffffff;
+    animation: wm-loading-spin 0.9s linear infinite;
+}
+.wm-loading-text {
+    color: #ffffff;
+    font: 600 14px system-ui, "Microsoft YaHei", sans-serif;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+@keyframes wm-loading-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

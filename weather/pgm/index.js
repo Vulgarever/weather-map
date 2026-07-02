@@ -44,35 +44,7 @@ window.weatherMap.onTimeChange = function (state) {
     }
 };
 
-/* 加载气象数据 */
-window.weatherMap.fetchAllRealData({
-    onLoad: function () {
-        console.log("[WeatherMap] 数据加载完成");
-        /* 默认仅激活天气图层；风场等其它图层由左侧栏手动开启 */
-        window.weatherMap.toggleLayer("weather", true);
-        /* 注入固定场站（常驻展示；当前天气图层已激活，场站会叠加天气角标） */
-        if (window.weatherMap.setStationConfig) {
-            window.weatherMap.setStationConfig(STATION_LIST);
-            weatherMap.highlightStations('光伏A区')            
-        }
-        /* 初始化时间标签 + 进度条到当前时间最近的时间步 */
-        var _idx = window.weatherMap.currentTimeIndex || 0;
-        var _steps = window.weatherMap.timeSteps || [];
-        if (_steps.length) {
-            app.timeLabel = _steps[_idx] || _steps[0];
-            app.timelineProgress =
-                _steps.length > 1
-                    ? Math.round((_idx / (_steps.length - 1)) * 100)
-                    : 0;
-        }
-        /* 时间轴刻度随 timeSteps 动态生成（app 为模块级变量，此处已就绪） */
-        app.timelineScale = app.buildTimelineScale();
-        app.currentTab = "weather";
-    },
-    onError: function (msg) {
-        console.error("[WeatherMap] " + msg);
-    },
-});
+
 function liemsOnLoad() {
     app = new Vue({
         el: "#liEMSAPP",
@@ -336,7 +308,30 @@ function liemsOnLoad() {
         },
         methods: {
             handleSearch: function () {
-                console.log("执行日期检索");
+                var self = this;
+                if (!window.weatherMap) return;
+                /* 查询按钮：慢接口在调地图刷新之前——先 showLoading 覆盖全程(慢接口+刷新)。
+                   TODO: 此处调用实际查询接口，完成后调 refreshCmissData 重建视图。
+                   onLoad/onError 里务必 hideLoading()，避免遮罩卡死。 */
+                window.weatherMap.showLoading();
+                if (typeof window.weatherMap.refreshCmissData !== "function") {
+                    window.weatherMap.hideLoading();
+                    return;
+                }
+                window.weatherMap.refreshCmissData({
+                    /* loading 默认 true：refreshCmissData 内部会再 show(计数式不叠加)，
+                       finally 里 hide 一次；此处 onLoad/onError 里再 hide 一次抵消 handleSearch 的 show。 */
+                    onLoad: function () {
+                        var layerType = self.layerMap[self.currentTab];
+                        if (layerType) window.weatherMap.toggleLayer(layerType, true);
+                        self.syncTimeAfterRefresh();
+                        window.weatherMap.hideLoading();
+                    },
+                    onError: function (msg) {
+                        console.error("[查询] " + msg);
+                        window.weatherMap.hideLoading();
+                    },
+                });
             },
             /* 刷新 cmiss 数据 + 视图（点击"刷新数据"按钮调用） */
             refreshCmiss: function () {
@@ -347,30 +342,32 @@ function liemsOnLoad() {
                 )
                     return;
                 window.weatherMap.refreshCmissData({
+                    loading: false, /* 刷新按钮不显示 loading（仅查询按钮显示） */
                     onLoad: function () {
                         /* 重新激活当前选中图层（缓存已清，用新数据重建） */
                         var layerType = self.layerMap[self.currentTab];
                         if (layerType)
                             window.weatherMap.toggleLayer(layerType, true);
-                        /* 时间轴重置到当前时间最近步 */
-                        var idx = window.weatherMap.currentTimeIndex || 0;
-                        var steps = window.weatherMap.timeSteps || [];
-                        if (steps.length) {
-                            self.timeLabel = steps[idx] || steps[0];
-                            self.timelineProgress =
-                                steps.length > 1
-                                    ? Math.round(
-                                          (idx / (steps.length - 1)) * 100,
-                                      )
-                                    : 0;
-                        }
-                        self.timelineScale = self.buildTimelineScale();
-                        self.isPlaying = false;
+                        self.syncTimeAfterRefresh();
                     },
                     onError: function (msg) {
                         console.error("[刷新cmiss] " + msg);
                     },
                 });
+            },
+            /* 刷新后重置时间轴到当前时间最近步 */
+            syncTimeAfterRefresh: function () {
+                var idx = window.weatherMap.currentTimeIndex || 0;
+                var steps = window.weatherMap.timeSteps || [];
+                if (steps.length) {
+                    this.timeLabel = steps[idx] || steps[0];
+                    this.timelineProgress =
+                        steps.length > 1
+                            ? Math.round((idx / (steps.length - 1)) * 100)
+                            : 0;
+                }
+                this.timelineScale = this.buildTimelineScale();
+                this.isPlaying = false;
             },
             slideForecast: function (direction) {
                 if (direction === "left" && this.canSlidePrev) {
@@ -671,6 +668,35 @@ function liemsOnLoad() {
             },
         },
         mounted: function () {
+            /* 加载气象数据 */
+            window.weatherMap.fetchAllRealData({
+                onLoad: function () {
+                    console.log("[WeatherMap] 数据加载完成");
+                    /* 默认仅激活天气图层；风场等其它图层由左侧栏手动开启 */
+                    window.weatherMap.toggleLayer("weather", true);
+                    /* 注入固定场站（常驻展示；当前天气图层已激活，场站会叠加天气角标） */
+                    if (window.weatherMap.setStationConfig) {
+                        window.weatherMap.setStationConfig(STATION_LIST);
+                        weatherMap.highlightStations('光伏A区')            
+                    }
+                    /* 初始化时间标签 + 进度条到当前时间最近的时间步 */
+                    var _idx = window.weatherMap.currentTimeIndex || 0;
+                    var _steps = window.weatherMap.timeSteps || [];
+                    if (_steps.length) {
+                        this.timeLabel = _steps[_idx] || _steps[0];
+                        this.timelineProgress =
+                            _steps.length > 1
+                                ? Math.round((_idx / (_steps.length - 1)) * 100)
+                                : 0;
+                    }
+                    /* 时间轴刻度随 timeSteps 动态生成（app 为模块级变量，此处已就绪） */
+                    this.timelineScale = this.buildTimelineScale();
+                    this.currentTab = "weather";
+                }.bind(this),
+                onError: function (msg) {
+                    console.error("[WeatherMap] " + msg);
+                },
+            });
             var self = this;
             this.$nextTick(function () {
                 self.updateForecastVisible();
